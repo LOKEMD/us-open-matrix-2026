@@ -130,9 +130,11 @@ let PLAYERS={};   // normname -> {name, rounds:[to-par per round], total, thru, 
 let META={round:'',state:''};
 let view='teams', query='';
 
-// Favorited teams, by team index, persisted on this device.
+// Favorited teams (by index) and players (by normalized name), persisted on this device.
 let FAVS = new Set(JSON.parse(localStorage.getItem('matrixFavs')||'[]'));
 function toggleFav(i){ FAVS.has(i)?FAVS.delete(i):FAVS.add(i); localStorage.setItem('matrixFavs',JSON.stringify([...FAVS])); render(); }
+let FAVP = new Set(JSON.parse(localStorage.getItem('matrixFavPlayers')||'[]'));
+function togglePlayerFav(id){ FAVP.has(id)?FAVP.delete(id):FAVP.add(id); localStorage.setItem('matrixFavPlayers',JSON.stringify([...FAVP])); render(); }
 
 async function load(){
   try{
@@ -284,21 +286,38 @@ function renderPlayers(){
     if(a.cut!==b.cut) return a.cut?1:-1;
     return a.total-b.total;
   });
+  // rank over the full field (not the filtered view)
+  let pos=0,prev=null,seen=0;
+  arr.forEach(p=>{ if(!p.cut){ seen++; if(p.total!==prev){pos=seen;prev=p.total;} p._pos=pos; } else p._pos=null; });
+
   const q=query.trim().toLowerCase();
   const vis=arr.filter(p=>!q||p.name.toLowerCase().includes(q));
   document.getElementById('count').textContent=`${vis.length} players in the field`;
-  let pos=0,prev=null,seen=0;
-  let h='<table><thead><tr><th class="rk">#</th><th>Player</th><th class="sc">R1</th><th class="sc">R2</th><th class="sc">R3</th><th class="sc">R4</th><th class="sc">Tot</th><th class="thru">Thru</th></tr></thead><tbody>';
-  for(const p of vis){
-    if(!p.cut){ seen++; if(p.total!==prev){pos=seen;prev=p.total;} }
-    const rk=p.cut?'<span style="color:var(--red);font-size:11px">CUT</span>':pos;
+
+  const favs=vis.filter(p=>FAVP.has(norm(p.name)));   // pinned to top, still ordered by score
+  const rest=vis.filter(p=>!FAVP.has(norm(p.name)));
+
+  const rowHtml=p=>{
+    const id=norm(p.name), fav=FAVP.has(id);
+    const rk=p.cut?'<span style="color:var(--red);font-size:11px">CUT</span>':p._pos;
     const r=i=>{const v=p.rounds?.[i]; return `<td class="sc ${v==null?'':cls(v)}" style="font-weight:600">${v==null?'–':fmt(v)}</td>`};
     const tot=p.cut?'CUT':p.total;
-    h+=`<tr><td class="rk">${rk}</td><td class="nm">${esc(p.name)}</td>${r(0)}${r(1)}${r(2)}${r(3)}
+    return `<tr class="${fav?'favrow':''}">
+      <td class="starcell"><button class="star-btn ${fav?'on':''}" data-favp="${esc(id)}" aria-label="Favorite ${esc(p.name)}">★</button></td>
+      <td class="rk">${rk}</td><td class="nm">${esc(p.name)}</td>${r(0)}${r(1)}${r(2)}${r(3)}
       <td class="sc ${cls(tot)}">${fmt(tot)}</td><td class="thru">${esc(p.thru||'')}</td></tr>`;
+  };
+
+  let h='<table><thead><tr><th class="starcell"></th><th class="rk">#</th><th>Player</th><th class="sc">R1</th><th class="sc">R2</th><th class="sc">R3</th><th class="sc">R4</th><th class="sc">Tot</th><th class="thru">Thru</th></tr></thead><tbody>';
+  if(favs.length){
+    h+='<tr class="divider"><td colspan="9">★ Favorites</td></tr>';
+    favs.forEach(p=>h+=rowHtml(p));
+    h+='<tr class="divider"><td colspan="9">All players</td></tr>';
   }
+  rest.forEach(p=>h+=rowHtml(p));
   h+='</tbody></table>';
-  document.getElementById('content').innerHTML=h;
+  const c=document.getElementById('content'); c.innerHTML=h;
+  c.querySelectorAll('.star-btn').forEach(b=> b.onclick=e=>{ e.stopPropagation(); togglePlayerFav(b.dataset.favp); });
 }
 
 function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
