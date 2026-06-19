@@ -149,25 +149,21 @@ function parse(d){
   for(const c of comp.competitors){
     const nm=c.athlete?.displayName||'';
     const cut = (c.status?.type?.name==='STATUS_CUT');
-    // overall to-par used for scoring
-    let total;
-    const sv=c.score?.displayValue;
-    total = (sv!=null) ? toNum(sv) : 0;
-    // per-round to-par for display
+    // Build each round's to-par from linescores[].displayValue. This is LIVE for the
+    // in-progress round (e.g. "-1" thru 7 holes), unlike score.displayValue which only
+    // reflects completed rounds. Total = sum of per-round to-pars = current live total.
     const ls=c.linescores||[];
-    const rounds=[];
-    let doneSum=0;
-    for(let i=0;i<ls.length;i++){
-      const v=ls[i]?.value;
-      const isFinal = (i < period-1) || (st.state==='post');
-      if(isFinal && typeof v==='number'){ const tp=Math.round(v)-PAR; rounds.push(tp); doneSum+=tp; }
-      else { rounds.push(null); } // current/in-progress round filled below
+    const rounds=[null,null,null,null];
+    let total=0, hasRounds=false;
+    for(const l of ls){
+      const idx=(l?.period||0)-1;
+      if(idx>=0 && idx<4 && l.displayValue!=null){
+        const tp=toNum(l.displayValue);
+        rounds[idx]=tp; total+=tp; hasRounds=true;
+      }
     }
-    // fill the in-progress round's to-par = overall - completed
-    if(st.state!=='post'){
-      const idx=period-1;
-      if(idx>=0 && idx<rounds.length && rounds[idx]===null && !cut) rounds[idx]=total-doneSum;
-    }
+    // Pre-tournament / no rounds yet: fall back to overall score if present.
+    if(!hasRounds && c.score?.displayValue!=null) total=toNum(c.score.displayValue);
     PLAYERS[norm(nm)]={
       name:nm, rounds, total, cut,
       thru:c.status?.displayThru||c.status?.type?.shortDetail||'',
