@@ -142,6 +142,8 @@ let FAVS = new Set(JSON.parse(localStorage.getItem('matrixFavs')||'[]'));
 function toggleFav(i){ FAVS.has(i)?FAVS.delete(i):FAVS.add(i); localStorage.setItem('matrixFavs',JSON.stringify([...FAVS])); render(); }
 let FAVP = new Set(JSON.parse(localStorage.getItem('matrixFavPlayers')||'[]'));
 function togglePlayerFav(id){ FAVP.has(id)?FAVP.delete(id):FAVP.add(id); localStorage.setItem('matrixFavPlayers',JSON.stringify([...FAVP])); render(); }
+let FAVSEA = new Set(JSON.parse(localStorage.getItem('matrixFavSeason')||'[]'));
+function toggleSeasonFav(i){ FAVSEA.has(i)?FAVSEA.delete(i):FAVSEA.add(i); localStorage.setItem('matrixFavSeason',JSON.stringify([...FAVSEA])); render(); }
 
 async function load(){
   try{
@@ -248,7 +250,7 @@ function majorCell(v,extra){
 
 function renderSeason(){
   const uso=usOpenLiveMap();
-  const rows=SEASON.map(s=>{ const k=normTeam(s.name); const u=(k in uso)?uso[k]:null; return {s,uso:u,tot:seasonTotal(s,u)}; });
+  const rows=SEASON.map((s,i)=>{ const k=normTeam(s.name); const u=(k in uso)?uso[k]:null; return {s,i,uso:u,tot:seasonTotal(s,u)}; });
   const rank=rows.filter(r=>typeof r.tot==='number').sort((a,b)=>a.tot-b.tot);
   const dq=rows.filter(r=>r.tot==='DQ');
   let ordered=[],pos=0,prev=null,seen=0;
@@ -259,18 +261,32 @@ function renderSeason(){
   const vis=ordered.filter(r=>!q||r.s.name.toLowerCase().includes(q));
   document.getElementById('count').textContent=`${vis.length} of ${SEASON.length} season entries`;
 
-  const live = META.state && META.state!=='post' ? '<span class="livedot" title="live"></span>' : '';
-  let h='<div class="scrollx"><table><thead><tr><th class="rk">#</th><th>Entry</th>'
-    +'<th class="sc">Masters</th><th class="sc">PGA</th><th class="sc uso">US Open'+live+'</th>'
-    +'<th class="sc">The Open</th><th class="sc">Bonus</th><th class="sc">Total</th></tr></thead><tbody>';
-  for(const r of vis){
+  const favs=vis.filter(r=>FAVSEA.has(r.i));   // pinned to top, still ordered by total
+  const rest=vis.filter(r=>!FAVSEA.has(r.i));
+
+  const rowHtml=r=>{
+    const fav=FAVSEA.has(r.i);
     const totCell = r.tot==='DQ' ? '<span style="color:var(--red);font-weight:700">DQ</span>' : scoreCell(r.tot);
-    h+=`<tr><td class="rk">${r.pos}</td><td class="nm">${esc(r.s.name)}</td>`
+    return `<tr class="${fav?'favrow':''}">`
+      +`<td class="starcell"><button class="star-btn ${fav?'on':''}" data-favsea="${r.i}" aria-label="Favorite ${esc(r.s.name)}">★</button></td>`
+      +`<td class="rk">${r.pos}</td><td class="nm">${esc(r.s.name)}</td>`
       +majorCell(r.s.masters)+majorCell(r.s.pga)+majorCell(r.uso,'uso')+majorCell(r.s.open)+majorCell(r.s.bonus)
       +`<td class="sc"><b>${totCell}</b></td></tr>`;
+  };
+
+  const live = META.state && META.state!=='post' ? '<span class="livedot" title="live"></span>' : '';
+  let h='<div class="scrollx"><table><thead><tr><th class="starcell"></th><th class="rk">#</th><th>Entry</th>'
+    +'<th class="sc">Masters</th><th class="sc">PGA</th><th class="sc uso">US Open'+live+'</th>'
+    +'<th class="sc">The Open</th><th class="sc">Bonus</th><th class="sc">Total</th></tr></thead><tbody>';
+  if(favs.length){
+    h+='<tr class="divider"><td colspan="9">★ Favorites</td></tr>';
+    favs.forEach(r=>h+=rowHtml(r));
+    h+='<tr class="divider"><td colspan="9">All entries</td></tr>';
   }
+  rest.forEach(r=>h+=rowHtml(r));
   h+='</tbody></table></div>';
-  document.getElementById('content').innerHTML=h;
+  const c=document.getElementById('content'); c.innerHTML=h;
+  c.querySelectorAll('.star-btn').forEach(b=> b.onclick=e=>{ e.stopPropagation(); toggleSeasonFav(+b.dataset.favsea); });
 }
 
 function renderTeams(){
