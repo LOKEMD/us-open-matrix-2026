@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2026 U.S. Open — Matrix Pool</title>
+<style>
+  :root{
+    --navy:#0a2342; --navy2:#143a66; --ink:#0d1b2a; --paper:#f4f6f9; --card:#fff;
+    --line:#e2e8f0; --muted:#64748b; --green:#1a7f4b; --red:#c0392b; --gold:#c9a227;
+    --shadow:0 1px 3px rgba(10,35,66,.08),0 1px 2px rgba(10,35,66,.06);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--paper);color:var(--ink);-webkit-font-smoothing:antialiased}
+  header{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;padding:18px 16px}
+  .wrap{max-width:920px;margin:0 auto;padding:0 14px}
+  .htop{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  h1{font-size:19px;margin:0;letter-spacing:.2px;font-weight:700}
+  h1 small{display:block;font-weight:500;font-size:12px;opacity:.8;letter-spacing:.4px;margin-top:2px}
+  .status{display:flex;align-items:center;gap:10px;font-size:12.5px;flex-wrap:wrap}
+  .pill{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.14);
+    padding:5px 10px;border-radius:999px;font-weight:600}
+  .dot{width:8px;height:8px;border-radius:50%;background:#39d98a;box-shadow:0 0 0 0 rgba(57,217,138,.7);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(57,217,138,.6)}70%{box-shadow:0 0 0 8px rgba(57,217,138,0)}100%{box-shadow:0 0 0 0 rgba(57,217,138,0)}}
+  button{font:inherit;cursor:pointer;border:none;border-radius:8px;padding:7px 12px;background:rgba(255,255,255,.16);color:#fff;font-weight:600}
+  button:hover{background:rgba(255,255,255,.26)}
+  .tabs{display:flex;gap:6px;margin-top:14px}
+  .tab{background:rgba(255,255,255,.10);padding:8px 16px;border-radius:8px 8px 0 0;font-weight:600;font-size:14px}
+  .tab.active{background:var(--paper);color:var(--navy)}
+  main{max-width:920px;margin:0 auto;padding:16px 14px 60px}
+  .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+  input[type=search]{flex:1;min-width:180px;font:inherit;padding:9px 12px;border:1px solid var(--line);
+    border-radius:9px;background:#fff;color:var(--ink)}
+  .count{font-size:12.5px;color:var(--muted)}
+  table{width:100%;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
+  thead th{background:#f8fafc;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;
+    color:var(--muted);padding:10px 12px;border-bottom:1px solid var(--line)}
+  tbody td{padding:11px 12px;border-bottom:1px solid var(--line);font-size:14.5px;vertical-align:middle}
+  tbody tr:last-child td{border-bottom:none}
+  .rk{width:40px;color:var(--muted);font-variant-numeric:tabular-nums;font-weight:600}
+  .nm{font-weight:600}
+  .sub{font-size:12px;color:var(--muted);font-weight:500;margin-top:1px}
+  .sc{text-align:right;font-variant-numeric:tabular-nums;font-weight:700;width:70px}
+  .thru{text-align:right;color:var(--muted);font-size:12.5px;width:70px;font-variant-numeric:tabular-nums}
+  .under{color:var(--green)} .over{color:var(--red)} .even{color:var(--ink)}
+  tr.team{cursor:pointer} tr.team:hover td{background:#f8fbff}
+  tr.team .nm::before{content:"▸";color:var(--muted);font-size:11px;margin-right:7px;display:inline-block;transition:transform .15s}
+  tr.team.open .nm::before{transform:rotate(90deg)}
+  tr.detail td{padding:0;background:#f8fafc}
+  .panel{padding:6px 12px 14px}
+  .pgrid{width:100%;border-collapse:collapse;margin-top:4px;background:#fff;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+  .pgrid th{background:transparent;font-size:10.5px;padding:7px 9px}
+  .pgrid td{padding:8px 9px;font-size:13.5px;border-bottom:1px solid #eef1f5}
+  .pgrid .r{text-align:right;font-variant-numeric:tabular-nums;width:46px}
+  .pgrid .tot{font-weight:700}
+  .badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 6px;border-radius:5px;margin-left:6px;vertical-align:middle}
+  .b-cut{background:#fdecea;color:var(--red)} .b-bench{background:#eef2ff;color:#3b5bdb}
+  .b-act{background:#e7f6ee;color:var(--green)} .b-win{background:#fff7e0;color:#9a7b0a}
+  .rowdim{opacity:.45}
+  .sep{height:1px;background:var(--line);margin:2px 0}
+  .teamtot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding:0 2px;font-size:13px}
+  .teamtot b{font-size:16px}
+  .loading,.err{padding:40px 16px;text-align:center;color:var(--muted)}
+  .err{color:var(--red)}
+  .legend{font-size:11.5px;color:var(--muted);margin-top:14px;display:flex;gap:14px;flex-wrap:wrap}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+  .hide{display:none}
+  @media(max-width:560px){
+    h1{font-size:16px} .pgrid .r{width:38px;padding:8px 5px} .pgrid td,.pgrid th{padding:7px 5px}
+    tbody td{padding:10px 8px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="htop">
+      <h1>2026 U.S. Open — Matrix Pool <small>SHINNECOCK HILLS · PAR 70</small></h1>
+      <div class="status">
+        <span class="pill"><span class="dot"></span><span id="round">Loading…</span></span>
+        <span class="pill" id="updated">—</span>
+        <button id="refresh">↻ Refresh</button>
+      </div>
+    </div>
+    <div class="tabs">
+      <div class="tab active" data-view="teams">Teams</div>
+      <div class="tab" data-view="players">Players</div>
+    </div>
+  </div>
+</header>
+<main>
+  <div class="toolbar">
+    <input type="search" id="q" placeholder="Search teams or players…">
+    <span class="count" id="count"></span>
+  </div>
+  <div id="content"><div class="loading">Fetching live leaderboard…</div></div>
+  <div class="legend">
+    <span><span class="badge b-win">PICK</span>outright winner pick</span>
+    <span><span class="badge b-bench">BENCH</span>reserve</span>
+    <span><span class="badge b-act">IN</span>active sub</span>
+    <span><span class="badge b-cut">CUT</span>missed cut</span>
+  </div>
+</main>
+
+<script src="data.js"></script>
+<script>
+const EVENT_ID = MATRIX.eventId, PAR = MATRIX.par;
+const ALIAS = {'ben james':'benjamin james','matti schmid':'matthias schmid','rocco repetto taylor':'rocco paolo repetto taylor'};
+const SCAND = {'ø':'o','å':'a','æ':'a','ö':'o','ü':'u','é':'e','ø':'o'};
+function norm(s){
+  s=(s||'').toLowerCase();
+  s=s.replace(/[øåæöüé]/g,c=>SCAND[c]||c);
+  s=s.normalize('NFKD').replace(/[̀-ͯ]/g,'');
+  s=s.replace(/\(a\)/g,'').replace(/[^a-z ]/g,'').replace(/\s+/g,' ').trim();
+  return ALIAS[s]||s;
+}
+function toNum(dv){ if(dv==null)return 0; const s=String(dv).trim(); if(s==='E'||s==='e')return 0; const n=parseInt(s,10); return isNaN(n)?0:n; }
+function fmt(v){ if(v==='CUT')return 'CUT'; if(v==='DQ')return 'DQ'; if(v===0)return 'E'; return v>0?('+'+v):(''+v); }
+function cls(v){ if(v==='CUT'||v==='DQ')return ''; if(v>0)return 'over'; if(v<0)return 'under'; return 'even'; }
+
+let PLAYERS={};   // normname -> {name, rounds:[to-par per round], total, thru, status, cut}
+let META={round:'',state:''};
+let view='teams', query='';
+
+async function load(){
+  try{
+    const url=`https://site.api.espn.com/apis/site/v2/sports/golf/leaderboard?event=${EVENT_ID}&_=${Date.now()}`;
+    const r=await fetch(url,{cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    parse(d);
+    render();
+    document.getElementById('updated').textContent='Updated '+new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  }catch(e){
+    document.getElementById('content').innerHTML='<div class="err">Couldn’t reach the live feed.<br><small>'+e.message+
+      '</small><br><br>If you opened this file directly, some browsers block the request — try the Refresh button, or host the folder (e.g. a quick local server).</div>';
+    document.getElementById('round').textContent='offline';
+  }
+}
+
+function parse(d){
+  const ev=d.events[0], comp=ev.competitions[0];
+  META.round = ev.status?.type?.description || '';
+  const period = comp.status?.period || ev.status?.period || 1;
+  const st=ev.status?.type||{};
+  META.label = st.state==='post' ? 'Final' : (st.state==='pre' ? (ev.status?.type?.shortDetail||'Upcoming') : ('Round '+period));
+  PLAYERS={};
+  for(const c of comp.competitors){
+    const nm=c.athlete?.displayName||'';
+    const cut = (c.status?.type?.name==='STATUS_CUT');
+    // overall to-par used for scoring
+    let total;
+    const sv=c.score?.displayValue;
+    total = (sv!=null) ? toNum(sv) : 0;
+    // per-round to-par for display
+    const ls=c.linescores||[];
+    const rounds=[];
+    let doneSum=0;
+    for(let i=0;i<ls.length;i++){
+      const v=ls[i]?.value;
+      const isFinal = (i < period-1) || (st.state==='post');
+      if(isFinal && typeof v==='number'){ const tp=Math.round(v)-PAR; rounds.push(tp); doneSum+=tp; }
+      else { rounds.push(null); } // current/in-progress round filled below
+    }
+    // fill the in-progress round's to-par = overall - completed
+    if(st.state!=='post'){
+      const idx=period-1;
+      if(idx>=0 && idx<rounds.length && rounds[idx]===null && !cut) rounds[idx]=total-doneSum;
+    }
+    PLAYERS[norm(nm)]={
+      name:nm, rounds, total, cut,
+      thru:c.status?.displayThru||c.status?.type?.shortDetail||'',
+      finished:c.status?.type?.state==='post'
+    };
+  }
+}
+
+function P(name){ return PLAYERS[norm(name)] || {name, rounds:[null,null,null,null], total:0, cut:false, thru:'—', missing:true}; }
+function ptotal(name){ const p=P(name); return p.cut?'CUT':p.total; }
+
+// EXACT mirror of the spreadsheet scoring
+function teamScore(t){
+  const s=t.s.map(ptotal), b=t.b.map(ptotal);
+  const all=s.concat(b);
+  const cutS=s.filter(x=>x==='CUT').length;
+  const cutAll=all.filter(x=>x==='CUT').length;
+  const nums=a=>a.reduce((z,x)=>z+(typeof x==='number'?x:0),0);
+  let val, active=[0,1,2,3,4], benchIn=[];
+  if(cutAll>=3) return {val:'DQ',active:[],benchIn:[]};
+  if(cutS>2) return {val:'DQ',active:[],benchIn:[]};
+  if(cutS===2){ val=nums(all); benchIn=[0,1]; }
+  else if(cutS===1){
+    const add = (b[0]!=='CUT') ? 0 : 1;        // which bench slot fills in
+    benchIn=[add];
+    val = nums(s) + (typeof b[add]==='number'?b[add]:0);
+  } else { val=nums(s); }
+  return {val, benchIn};
+}
+
+function scoreCell(v){ return `<span class="${cls(v)}">${fmt(v)}</span>`; }
+
+function render(){
+  document.getElementById('round').textContent = META.label||META.round||'live';
+  if(view==='teams') renderTeams(); else renderPlayers();
+}
+
+function renderTeams(){
+  const rows = MATRIX.teams.map(t=>({t, sc:teamScore(t)}));
+  const rank = rows.filter(r=>typeof r.sc.val==='number').sort((a,b)=>a.sc.val-b.sc.val);
+  const dq = rows.filter(r=>typeof r.sc.val!=='number');
+  let ordered=[]; let pos=0,prev=null,seen=0;
+  for(const r of rank){ seen++; if(r.sc.val!==prev){pos=seen;prev=r.sc.val;} ordered.push({...r,pos}); }
+  for(const r of dq) ordered.push({...r,pos:'—'});
+
+  const q=query.trim().toLowerCase();
+  const vis = ordered.filter(r=> !q || r.t.name.toLowerCase().includes(q) ||
+      r.t.s.concat(r.t.b,[r.t.pick]).some(n=>n.toLowerCase().includes(q)));
+  document.getElementById('count').textContent=`${vis.length} of ${MATRIX.teams.length} teams`;
+
+  let h='<table><thead><tr><th class="rk">#</th><th>Team</th><th class="sc">Total</th></tr></thead><tbody>';
+  for(const r of vis){
+    const v=r.sc.val;
+    h+=`<tr class="team" data-team="${r.t._i=MATRIX.teams.indexOf(r.t)}">
+      <td class="rk">${r.pos}</td>
+      <td><div class="nm">${esc(r.t.name)}</div><div class="sub">Winner: ${esc(r.t.pick||'—')}</div></td>
+      <td class="sc">${scoreCell(v)}</td></tr>
+      <tr class="detail hide"><td colspan="3"><div class="panel">${teamPanel(r.t,r.sc)}</div></td></tr>`;
+  }
+  h+='</tbody></table>';
+  const c=document.getElementById('content'); c.innerHTML=h;
+  c.querySelectorAll('tr.team').forEach(tr=>tr.onclick=()=>{
+    tr.classList.toggle('open'); tr.nextElementSibling.classList.toggle('hide');
+  });
+}
+
+function rosterRow(name,opts){
+  const p=P(name); const rounds=p.rounds||[null,null,null,null];
+  const cell=v=> v==null? '<td class="r">–</td>' : `<td class="r ${cls(v)}">${fmt(v)}</td>`;
+  let tag='';
+  if(opts.bench) tag = opts.active? '<span class="badge b-act">IN</span>' : '<span class="badge b-bench">BENCH</span>';
+  if(p.cut) tag+='<span class="badge b-cut">CUT</span>';
+  if(opts.pick) tag+='<span class="badge b-win">PICK</span>';
+  const dim = (opts.bench && !opts.active) ? 'rowdim' : '';
+  const tot = p.cut?'CUT':p.total;
+  return `<tr class="${dim}"><td>${esc(p.name)}${tag}</td>
+    ${cell(rounds[0])}${cell(rounds[1])}${cell(rounds[2])}${cell(rounds[3])}
+    <td class="r tot ${cls(tot)}">${fmt(tot)}</td></tr>`;
+}
+
+function teamPanel(t,sc){
+  let h='<table class="pgrid"><thead><tr><th>Golfer</th><th class="r">R1</th><th class="r">R2</th><th class="r">R3</th><th class="r">R4</th><th class="r">Tot</th></tr></thead><tbody>';
+  const pickName=norm(t.pick.replace(/\s[-+]?\d+\*?$/,''));
+  t.s.forEach(n=> h+=rosterRow(n,{pick:norm(n)===pickName}));
+  h+='<tr><td colspan="6" style="padding:0"><div class="sep"></div></td></tr>';
+  t.b.forEach((n,i)=> h+=rosterRow(n,{bench:true, active:(sc.benchIn||[]).includes(i), pick:norm(n)===pickName}));
+  h+='</tbody></table>';
+  h+=`<div class="teamtot"><span>Team total (best 5 starters, subs for cut players)</span><b>${scoreCell(sc.val)}</b></div>`;
+  return h;
+}
+
+function renderPlayers(){
+  const arr=Object.values(PLAYERS).slice().sort((a,b)=>{
+    if(a.cut!==b.cut) return a.cut?1:-1;
+    return a.total-b.total;
+  });
+  const q=query.trim().toLowerCase();
+  const vis=arr.filter(p=>!q||p.name.toLowerCase().includes(q));
+  document.getElementById('count').textContent=`${vis.length} players in the field`;
+  let pos=0,prev=null,seen=0;
+  let h='<table><thead><tr><th class="rk">#</th><th>Player</th><th class="sc">R1</th><th class="sc">R2</th><th class="sc">R3</th><th class="sc">R4</th><th class="sc">Tot</th><th class="thru">Thru</th></tr></thead><tbody>';
+  for(const p of vis){
+    if(!p.cut){ seen++; if(p.total!==prev){pos=seen;prev=p.total;} }
+    const rk=p.cut?'<span style="color:var(--red);font-size:11px">CUT</span>':pos;
+    const r=i=>{const v=p.rounds?.[i]; return `<td class="sc ${v==null?'':cls(v)}" style="font-weight:600">${v==null?'–':fmt(v)}</td>`};
+    const tot=p.cut?'CUT':p.total;
+    h+=`<tr><td class="rk">${rk}</td><td class="nm">${esc(p.name)}</td>${r(0)}${r(1)}${r(2)}${r(3)}
+      <td class="sc ${cls(tot)}">${fmt(tot)}</td><td class="thru">${esc(p.thru||'')}</td></tr>`;
+  }
+  h+='</tbody></table>';
+  document.getElementById('content').innerHTML=h;
+}
+
+function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active'); view=t.dataset.view; render();
+});
+document.getElementById('q').addEventListener('input',e=>{query=e.target.value;render();});
+document.getElementById('refresh').onclick=load;
+
+load();
+setInterval(load, 60000); // auto-refresh every 60s
+</script>
+</body>
+</html>
