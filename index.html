@@ -73,6 +73,11 @@
   .legend{font-size:11.5px;color:var(--muted);margin-top:14px;display:flex;gap:14px;flex-wrap:wrap}
   .legend span{display:inline-flex;align-items:center;gap:5px}
   .hide{display:none}
+  .scrollx{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:12px}
+  .scrollx table{min-width:600px}
+  th.uso,td.uso{background:#fbfdff;box-shadow:inset 1px 0 0 var(--line),inset -1px 0 0 var(--line)}
+  th.uso{color:var(--navy)}
+  .livedot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#39d98a;margin-left:4px;vertical-align:middle}
   @media(max-width:560px){
     h1{font-size:16px} .pgrid .r{width:38px;padding:8px 5px} .pgrid td,.pgrid th{padding:7px 5px}
     tbody td{padding:10px 8px}
@@ -93,6 +98,7 @@
     <div class="tabs">
       <div class="tab active" data-view="teams">Teams</div>
       <div class="tab" data-view="players">Players</div>
+      <div class="tab" data-view="season">Season</div>
     </div>
   </div>
 </header>
@@ -111,6 +117,7 @@
 </main>
 
 <script src="data.js"></script>
+<script src="season.js"></script>
 <script>
 const EVENT_ID = MATRIX.eventId, PAR = MATRIX.par;
 const ALIAS = {'ben james':'benjamin james','matti schmid':'matthias schmid','rocco repetto taylor':'rocco paolo repetto taylor'};
@@ -157,6 +164,7 @@ function parse(d){
   META.round = ev.status?.type?.description || '';
   const period = comp.status?.period || ev.status?.period || 1;
   const st=ev.status?.type||{};
+  META.state = st.state||'';
   META.label = st.state==='post' ? 'Final' : (st.state==='pre' ? (ev.status?.type?.shortDetail||'Upcoming') : ('Round '+period));
   PLAYERS={};
   for(const c of comp.competitors){
@@ -211,7 +219,58 @@ function scoreCell(v){ return `<span class="${cls(v)}">${fmt(v)}</span>`; }
 
 function render(){
   document.getElementById('round').textContent = META.label||META.round||'live';
-  if(view==='teams') renderTeams(); else renderPlayers();
+  if(view==='teams') renderTeams();
+  else if(view==='season') renderSeason();
+  else renderPlayers();
+}
+
+// Team-name normalizer that keeps digits (team names like "513B", "8NOWMAN").
+function normTeam(s){ return (s||'').normalize('NFKD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim(); }
+
+// Live U.S. Open score for each entry, keyed by team name, from the Matrix standings.
+function usOpenLiveMap(){
+  const map={};
+  MATRIX.teams.forEach(t=>{ const k=normTeam(t.name); if(!(k in map)) map[k]=teamScore(t).val; });
+  return map;
+}
+// Season total = Masters + PGA + US Open + The Open + Bonus; DQ in any major => season DQ.
+function seasonTotal(s,uso){
+  const majors=[s.masters,s.pga,uso,s.open];
+  if(majors.some(v=>v==='DQ')) return 'DQ';
+  return majors.concat([s.bonus]).reduce((a,v)=>a+(typeof v==='number'?v:0),0);
+}
+function majorCell(v,extra){
+  const c='sc'+(extra?(' '+extra):'');
+  if(v==null) return `<td class="${c}">–</td>`;
+  if(v==='DQ') return `<td class="${c}"><span style="color:var(--red);font-size:11px;font-weight:700">DQ</span></td>`;
+  return `<td class="${c} ${cls(v)}">${fmt(v)}</td>`;
+}
+
+function renderSeason(){
+  const uso=usOpenLiveMap();
+  const rows=SEASON.map(s=>{ const k=normTeam(s.name); const u=(k in uso)?uso[k]:null; return {s,uso:u,tot:seasonTotal(s,u)}; });
+  const rank=rows.filter(r=>typeof r.tot==='number').sort((a,b)=>a.tot-b.tot);
+  const dq=rows.filter(r=>r.tot==='DQ');
+  let ordered=[],pos=0,prev=null,seen=0;
+  for(const r of rank){ seen++; if(r.tot!==prev){pos=seen;prev=r.tot;} ordered.push({...r,pos}); }
+  for(const r of dq) ordered.push({...r,pos:'—'});
+
+  const q=query.trim().toLowerCase();
+  const vis=ordered.filter(r=>!q||r.s.name.toLowerCase().includes(q));
+  document.getElementById('count').textContent=`${vis.length} of ${SEASON.length} season entries`;
+
+  const live = META.state && META.state!=='post' ? '<span class="livedot" title="live"></span>' : '';
+  let h='<div class="scrollx"><table><thead><tr><th class="rk">#</th><th>Entry</th>'
+    +'<th class="sc">Masters</th><th class="sc">PGA</th><th class="sc uso">US Open'+live+'</th>'
+    +'<th class="sc">The Open</th><th class="sc">Bonus</th><th class="sc">Total</th></tr></thead><tbody>';
+  for(const r of vis){
+    const totCell = r.tot==='DQ' ? '<span style="color:var(--red);font-weight:700">DQ</span>' : scoreCell(r.tot);
+    h+=`<tr><td class="rk">${r.pos}</td><td class="nm">${esc(r.s.name)}</td>`
+      +majorCell(r.s.masters)+majorCell(r.s.pga)+majorCell(r.uso,'uso')+majorCell(r.s.open)+majorCell(r.s.bonus)
+      +`<td class="sc"><b>${totCell}</b></td></tr>`;
+  }
+  h+='</tbody></table></div>';
+  document.getElementById('content').innerHTML=h;
 }
 
 function renderTeams(){
