@@ -74,7 +74,11 @@ const EVENT_ID = (window.MATRIX && MATRIX.eventId) || '401811952';
 let FIELD = [];          // array of player display names
 let selected = [];       // up to 7: 0-4 starters, 5-6 bench
 let pick = '';
+let pickScore = '';      // predicted winning score, to par (string in the input)
 let q = '';
+
+const scoreOk = ()=> pickScore!=='' && Number.isFinite(+pickScore);
+function fmtScore(v){ if(v==null||v==='')return ''; v=+v; return v===0?'E':(v>0?'+'+v:''+v); }
 
 async function loadField(){
   try{
@@ -108,7 +112,7 @@ function renderForm(){
   const sCount=selected.slice(0,5).filter(Boolean).length, bCount=selected.slice(5,7).filter(Boolean).length;
   const ql=q.trim().toLowerCase();
   const list=FIELD.filter(n=>!ql||n.toLowerCase().includes(ql));
-  const ready = filled===7 && sCount===5 && bCount===2 && pick &&
+  const ready = filled===7 && sCount===5 && bCount===2 && pick && scoreOk() &&
     document.getElementById('teamName')?.value.trim() && document.getElementById('email')?.value.trim();
 
   document.getElementById('app').innerHTML = `
@@ -128,9 +132,17 @@ function renderForm(){
 
     <div class="card">
       <h2>Outright winner pick</h2>
-      <label for="pick">Who wins the tournament?</label>
-      <select id="pick"><option value="">— select a player —</option>
-        ${FIELD.map(n=>`<option value="${esc(n)}" ${n===pick?'selected':''}>${esc(n)}</option>`).join('')}</select>
+      <div class="row2">
+        <div>
+          <label for="pick">Who wins the tournament?</label>
+          <select id="pick"><option value="">— select a player —</option>
+            ${FIELD.map(n=>`<option value="${esc(n)}" ${n===pick?'selected':''}>${esc(n)}</option>`).join('')}</select>
+        </div>
+        <div>
+          <label for="pickScore">Their winning score (to par)</label>
+          <input id="pickScore" type="number" step="1" inputmode="numeric" placeholder="e.g. -11  (0 = E)" value="${pickScore}">
+        </div>
+      </div>
     </div>
 
     <div class="card">
@@ -153,6 +165,7 @@ function renderForm(){
   tn.oninput=()=>{window._tn=tn.value; toggleReady();};
   em.oninput=()=>{window._em=em.value; toggleReady();};
   document.getElementById('pick').onchange=e=>{pick=e.target.value; toggleReady();};
+  document.getElementById('pickScore').oninput=e=>{pickScore=e.target.value; toggleReady();};
   const s=document.getElementById('search');
   s.oninput=()=>{ q=s.value; const pos=s.selectionStart; renderForm(); const ns=document.getElementById('search'); ns.focus(); ns.setSelectionRange(pos,pos); };
   document.querySelectorAll('.pitem').forEach(el=> el.onclick=()=>togglePlayer(el.dataset.name));
@@ -162,7 +175,7 @@ function renderForm(){
 
 function toggleReady(){
   const filled=selected.filter(Boolean).length;
-  const ready = filled===7 && pick &&
+  const ready = filled===7 && pick && scoreOk() &&
     document.getElementById('teamName').value.trim() && document.getElementById('email').value.trim();
   document.getElementById('submit').disabled=!ready;
 }
@@ -180,7 +193,7 @@ async function submit(){
   const payload={
     teamName:document.getElementById('teamName').value.trim(),
     email:document.getElementById('email').value.trim(),
-    starters:selected.slice(0,5), bench:selected.slice(5,7), pick
+    starters:selected.slice(0,5), bench:selected.slice(5,7), pick, pickScore:parseInt(pickScore,10)
   };
   try{
     const r=await fetch('/api/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
@@ -201,11 +214,11 @@ function done(p){
         ${p.starters.map(n=>`<div class="li"><span>${esc(n)}</span></div>`).join('')}
         <div class="li"><b>Bench</b></div>
         ${p.bench.map(n=>`<div class="li"><span>${esc(n)}</span></div>`).join('')}
-        <div class="li"><span><b>Outright winner</b></span><span>${esc(p.pick)}</span></div>
+        <div class="li"><span><b>Outright winner</b></span><span>${esc(p.pick)} ${fmtScore(p.pickScore)}</span></div>
       </div>
       <a class="again" href="/submit">Submit another team →</a>
     </div>`;
-  window._tn=''; window._em=''; selected=[]; pick=''; q='';
+  window._tn=''; window._em=''; selected=[]; pick=''; pickScore=''; q='';
 }
 
 loadField();

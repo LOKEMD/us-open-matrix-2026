@@ -33,6 +33,7 @@
 </main>
 <script>
 function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function fmtScore(v){ if(v==null||v==='')return ''; v=+v; return v===0?'E':(v>0?'+'+v:''+v); }
 async function load(){
   const r=await fetch('/api/submissions?_='+Date.now(),{cache:'no-store'});
   const subs=await r.json();
@@ -48,7 +49,7 @@ async function load(){
       <div class="grid">
         <div><h3>Starters</h3><ul>${s.starters.map(p=>`<li>${esc(p)}</li>`).join('')}</ul></div>
         <div><h3>Bench</h3><ul>${s.bench.map(p=>`<li>${esc(p)}</li>`).join('')}</ul></div>
-        <div><h3>Outright winner</h3><div class="win">${esc(s.pick)}</div></div>
+        <div><h3>Outright winner</h3><div class="win">${esc(s.pick)} ${fmtScore(s.pickScore)}</div></div>
       </div>
     </div>`).join('');
 }

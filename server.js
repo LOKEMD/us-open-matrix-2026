@@ -26,6 +26,7 @@ app.post('/api/submit', (req, res) => {
   const starters = Array.isArray(b.starters) ? b.starters.filter(Boolean) : [];
   const bench = Array.isArray(b.bench) ? b.bench.filter(Boolean) : [];
   const pick = (b.pick || '').trim();
+  const pickScore = Math.round(Number(b.pickScore));
 
   if (!name) return res.status(400).json({ ok: false, error: 'Team name is required.' });
   if (!email) return res.status(400).json({ ok: false, error: 'Email is required.' });
@@ -34,11 +35,12 @@ app.post('/api/submit', (req, res) => {
   const all = [...starters, ...bench];
   if (new Set(all).size !== all.length) return res.status(400).json({ ok: false, error: 'No duplicate players.' });
   if (!pick) return res.status(400).json({ ok: false, error: 'Pick an outright winner.' });
+  if (!Number.isFinite(pickScore)) return res.status(400).json({ ok: false, error: 'Enter the predicted winning score.' });
 
   const subs = readSubs();
   const entry = {
     id: 'sub_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    teamName: name, email, starters, bench, pick,
+    teamName: name, email, starters, bench, pick, pickScore,
     submittedAt: new Date().toISOString(),
     // demo only: not a confirmed/verified submission yet
     confirmed: false
