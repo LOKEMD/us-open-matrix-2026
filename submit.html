@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Submit Your Team — Majors Pool</title>
+<style>
+  :root{
+    --navy:#0a2342;--navy2:#143a66;--ink:#0d1b2a;--paper:#f4f6f9;--card:#fff;
+    --line:#e2e8f0;--muted:#64748b;--green:#1a7f4b;--red:#c0392b;--gold:#c9a227;
+    --shadow:0 1px 3px rgba(10,35,66,.08),0 1px 2px rgba(10,35,66,.06);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--paper);color:var(--ink);-webkit-font-smoothing:antialiased}
+  header{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;padding:20px 16px}
+  .wrap{max-width:780px;margin:0 auto;padding:0 14px}
+  h1{font-size:20px;margin:0;font-weight:700}
+  h1 small{display:block;font-weight:500;font-size:12.5px;opacity:.82;margin-top:3px}
+  main{max-width:780px;margin:0 auto;padding:18px 14px 70px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:16px;margin-bottom:16px}
+  .card h2{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:0 0 12px}
+  label{display:block;font-size:13px;font-weight:600;margin-bottom:5px}
+  input,select{width:100%;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink)}
+  .row2{display:flex;gap:12px;flex-wrap:wrap}
+  .row2>div{flex:1;min-width:200px}
+  .slots{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .slot{display:flex;align-items:center;gap:8px;border:1px dashed var(--line);border-radius:9px;padding:9px 11px;min-height:44px;font-size:14px;background:#fbfdff}
+  .slot.filled{border-style:solid;background:#fff;cursor:pointer}
+  .slot.bench{background:#f6f7fb}
+  .slot .tag{font-size:9.5px;font-weight:700;letter-spacing:.4px;color:var(--muted);width:54px;flex:none}
+  .slot.bench .tag{color:#3b5bdb}
+  .slot .who{font-weight:600;flex:1}
+  .slot .empty{color:#aab4c2;font-weight:500}
+  .slot .x{color:var(--red);font-weight:700;font-size:16px;line-height:1;opacity:.6}
+  .slot.filled:hover .x{opacity:1}
+  .counts{font-size:12px;color:var(--muted);margin-top:8px}
+  .search{margin:0 0 10px}
+  .plist{max-height:340px;overflow-y:auto;border:1px solid var(--line);border-radius:10px}
+  .pitem{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid #eef1f5;cursor:pointer;font-size:14.5px}
+  .pitem:last-child{border-bottom:none}
+  .pitem:hover{background:#f8fbff}
+  .pitem.sel{background:#f0f7f1}
+  .pitem.sel .who{color:var(--green);font-weight:700}
+  .pitem .mark{font-size:13px;font-weight:700;color:var(--green)}
+  .pitem.full{opacity:.4;cursor:not-allowed}
+  button.primary{width:100%;font:inherit;font-weight:700;font-size:16px;cursor:pointer;border:none;border-radius:10px;
+    padding:14px;background:var(--green);color:#fff}
+  button.primary:disabled{background:#9bb6a6;cursor:not-allowed}
+  .msg{font-size:13.5px;margin-top:10px}
+  .msg.err{color:var(--red)} .msg.ok{color:var(--green)}
+  .loading{padding:30px;text-align:center;color:var(--muted)}
+  .note{font-size:12px;color:var(--muted);margin-top:6px}
+  .done{text-align:center;padding:26px 12px}
+  .done .big{font-size:40px}
+  .done h2{border:none;text-transform:none;letter-spacing:0;font-size:20px;color:var(--ink);margin:10px 0 6px}
+  .summary{text-align:left;max-width:420px;margin:14px auto 0;font-size:14px}
+  .summary .li{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)}
+  a.again{display:inline-block;margin-top:16px;color:var(--navy);font-weight:600}
+  @media(max-width:520px){.slots{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>Submit Your Team <small>2026 MAJORS POOL · pick 5 starters + 2 bench + an outright winner</small></h1>
+</div></header>
+<main id="app">
+  <div class="loading">Loading the player field…</div>
+</main>
+
+<script src="data.js"></script>
+<script>
+const EVENT_ID = (window.MATRIX && MATRIX.eventId) || '401811952';
+let FIELD = [];          // array of player display names
+let selected = [];       // up to 7: 0-4 starters, 5-6 bench
+let pick = '';
+let q = '';
+
+async function loadField(){
+  try{
+    const r = await fetch(`https://site.api.espn.com/apis/site/v2/sports/golf/leaderboard?event=${EVENT_ID}&_=${Date.now()}`,{cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d = await r.json();
+    const comp = d.events?.[0]?.competitions?.[0]?.competitors || [];
+    FIELD = comp.map(c=>c.athlete?.displayName).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+    if(!FIELD.length) return notReady();
+    renderForm();
+  }catch(e){ notReady(e.message); }
+}
+function notReady(err){
+  document.getElementById('app').innerHTML =
+    `<div class="card"><h2>Field not available yet</h2>
+     <p style="font-size:14px;color:var(--muted);margin:0">The player list for this major hasn’t been published yet — check back once the field is announced and you’ll be able to build your team here.</p>
+     ${err?`<p class="note">(${err})</p>`:''}</div>`;
+}
+
+function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+
+function slotHtml(i){
+  const isBench=i>=5; const tag=isBench?`Bench ${i-4}`:`Starter ${i+1}`;
+  const who=selected[i];
+  if(who) return `<div class="slot filled ${isBench?'bench':''}" data-slot="${i}"><span class="tag">${tag}</span><span class="who">${esc(who)}</span><span class="x">×</span></div>`;
+  return `<div class="slot ${isBench?'bench':''}"><span class="tag">${tag}</span><span class="empty">tap a player below</span></div>`;
+}
+
+function renderForm(){
+  const filled=selected.filter(Boolean).length;
+  const sCount=selected.slice(0,5).filter(Boolean).length, bCount=selected.slice(5,7).filter(Boolean).length;
+  const ql=q.trim().toLowerCase();
+  const list=FIELD.filter(n=>!ql||n.toLowerCase().includes(ql));
+  const ready = filled===7 && sCount===5 && bCount===2 && pick &&
+    document.getElementById('teamName')?.value.trim() && document.getElementById('email')?.value.trim();
+
+  document.getElementById('app').innerHTML = `
+    <div class="card">
+      <h2>Team details</h2>
+      <div class="row2">
+        <div><label for="teamName">Team / entry name</label><input id="teamName" placeholder="e.g. Bengal Nation" value="${esc(window._tn||'')}"></div>
+        <div><label for="email">Email</label><input id="email" type="email" placeholder="you@example.com" value="${esc(window._em||'')}"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Your roster</h2>
+      <div class="slots">${[0,1,2,3,4,5,6].map(slotHtml).join('')}</div>
+      <div class="counts">Starters ${sCount}/5 · Bench ${bCount}/2 — tap a filled slot to remove.</div>
+    </div>
+
+    <div class="card">
+      <h2>Outright winner pick</h2>
+      <label for="pick">Who wins the tournament?</label>
+      <select id="pick"><option value="">— select a player —</option>
+        ${FIELD.map(n=>`<option value="${esc(n)}" ${n===pick?'selected':''}>${esc(n)}</option>`).join('')}</select>
+    </div>
+
+    <div class="card">
+      <h2>Player field — ${FIELD.length} players</h2>
+      <input class="search" id="search" type="search" placeholder="Search players…" value="${esc(q)}">
+      <div class="plist">${list.map(n=>{
+        const sel=selected.includes(n); const full=!sel && filled>=7;
+        return `<div class="pitem ${sel?'sel':''} ${full?'full':''}" data-name="${esc(n)}">
+          <span class="who">${esc(n)}</span>${sel?'<span class="mark">✓ picked</span>':(full?'<span class="note">roster full</span>':'<span class="note">tap to add</span>')}</div>`;
+      }).join('')}</div>
+    </div>
+
+    <button class="primary" id="submit" ${ready?'':'disabled'}>Submit team</button>
+    <div class="msg" id="msg"></div>
+    <p class="note">Demo — no confirmation or login yet. We’ll add email confirmation later.</p>
+  `;
+
+  // wire up (preserve typed values across re-render)
+  const tn=document.getElementById('teamName'), em=document.getElementById('email');
+  tn.oninput=()=>{window._tn=tn.value; toggleReady();};
+  em.oninput=()=>{window._em=em.value; toggleReady();};
+  document.getElementById('pick').onchange=e=>{pick=e.target.value; toggleReady();};
+  const s=document.getElementById('search');
+  s.oninput=()=>{ q=s.value; const pos=s.selectionStart; renderForm(); const ns=document.getElementById('search'); ns.focus(); ns.setSelectionRange(pos,pos); };
+  document.querySelectorAll('.pitem').forEach(el=> el.onclick=()=>togglePlayer(el.dataset.name));
+  document.querySelectorAll('.slot.filled').forEach(el=> el.onclick=()=>{ const i=+el.dataset.slot; selected[i]=undefined; compact(); renderForm(); });
+  document.getElementById('submit').onclick=submit;
+}
+
+function toggleReady(){
+  const filled=selected.filter(Boolean).length;
+  const ready = filled===7 && pick &&
+    document.getElementById('teamName').value.trim() && document.getElementById('email').value.trim();
+  document.getElementById('submit').disabled=!ready;
+}
+function togglePlayer(name){
+  const i=selected.indexOf(name);
+  if(i>=0){ selected[i]=undefined; compact(); }
+  else { if(selected.filter(Boolean).length>=7) return; const slot=firstEmpty(); selected[slot]=name; }
+  renderForm();
+}
+function firstEmpty(){ for(let i=0;i<7;i++) if(!selected[i]) return i; return -1; }
+function compact(){ const vals=selected.filter(Boolean); selected=[...vals]; while(selected.length<7) selected.push(undefined); }
+
+async function submit(){
+  const msg=document.getElementById('msg'); msg.className='msg'; msg.textContent='Submitting…';
+  const payload={
+    teamName:document.getElementById('teamName').value.trim(),
+    email:document.getElementById('email').value.trim(),
+    starters:selected.slice(0,5), bench:selected.slice(5,7), pick
+  };
+  try{
+    const r=await fetch('/api/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const d=await r.json();
+    if(!d.ok) throw new Error(d.error||'Submission failed');
+    done(payload);
+  }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
+}
+
+function done(p){
+  document.getElementById('app').innerHTML=`
+    <div class="card done">
+      <div class="big">✅</div>
+      <h2>Team submitted!</h2>
+      <p style="color:var(--muted);font-size:14px;margin:0">Thanks ${esc(p.teamName)} — your picks are in.</p>
+      <div class="summary">
+        <div class="li"><b>Starters</b></div>
+        ${p.starters.map(n=>`<div class="li"><span>${esc(n)}</span></div>`).join('')}
+        <div class="li"><b>Bench</b></div>
+        ${p.bench.map(n=>`<div class="li"><span>${esc(n)}</span></div>`).join('')}
+        <div class="li"><span><b>Outright winner</b></span><span>${esc(p.pick)}</span></div>
+      </div>
+      <a class="again" href="/submit">Submit another team →</a>
+    </div>`;
+  window._tn=''; window._em=''; selected=[]; pick=''; q='';
+}
+
+loadField();
+</script>
+</body>
+</html>
