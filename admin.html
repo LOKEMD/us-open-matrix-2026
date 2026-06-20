@@ -3,56 +3,95 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Submissions — Majors Pool (admin)</title>
+<title>Entries — Majors Pool (admin)</title>
 <style>
-  :root{--navy:#0a2342;--navy2:#143a66;--ink:#0d1b2a;--paper:#f4f6f9;--card:#fff;--line:#e2e8f0;--muted:#64748b;--green:#1a7f4b;--shadow:0 1px 3px rgba(10,35,66,.08)}
+  :root{--navy:#0a2342;--navy2:#143a66;--ink:#0d1b2a;--paper:#f4f6f9;--card:#fff;--line:#e2e8f0;--muted:#64748b;--green:#1a7f4b;--red:#c0392b;--gold:#c9a227;--shadow:0 1px 3px rgba(10,35,66,.08)}
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--paper);color:var(--ink)}
   header{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;padding:18px 16px}
   .wrap{max-width:1000px;margin:0 auto;padding:0 14px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
   h1{font-size:18px;margin:0}
-  button{font:inherit;cursor:pointer;border:none;border-radius:8px;padding:8px 13px;background:rgba(255,255,255,.16);color:#fff;font-weight:600}
+  header button{font:inherit;cursor:pointer;border:none;border-radius:8px;padding:8px 13px;background:rgba(255,255,255,.16);color:#fff;font-weight:600}
   main{max-width:1000px;margin:0 auto;padding:18px 14px 60px}
-  .count{color:var(--muted);font-size:13px;margin-bottom:12px}
-  .sub{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:14px 16px;margin-bottom:12px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:14px 16px;margin-bottom:14px}
+  .card h2{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:0 0 12px}
+  label{display:block;font-size:13px;font-weight:600;margin-bottom:5px}
+  input{width:100%;font:inherit;padding:9px 11px;border:1px solid var(--line);border-radius:9px}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+  .row>div{flex:1;min-width:180px}
+  .row button{font:inherit;font-weight:700;cursor:pointer;border:none;border-radius:9px;padding:10px 16px;background:var(--green);color:#fff;white-space:nowrap}
+  .msg{font-size:13px;margin-top:10px}.msg.err{color:var(--red)}.msg.ok{color:var(--green)}
+  .count{color:var(--muted);font-size:13px;margin:4px 0 12px}
   .sub .top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
   .sub .nm{font-weight:700;font-size:16px}
   .sub .meta{font-size:12px;color:var(--muted)}
+  .pill{font-size:10.5px;font-weight:700;letter-spacing:.4px;padding:3px 8px;border-radius:999px;text-transform:uppercase}
+  .pill.done{background:#e7f6ee;color:var(--green)} .pill.pending{background:#fff3e0;color:#9a6a00}
   .grid{display:flex;gap:24px;flex-wrap:wrap;margin-top:10px;font-size:14px}
   .grid h3{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:0 0 5px}
   .grid li{list-style:none}.grid ul{margin:0;padding:0}
   .win{color:var(--green);font-weight:700}
-  .empty{padding:40px;text-align:center;color:var(--muted)}
+  .pendingnote{color:var(--muted);font-size:13px;margin-top:8px}
+  .empty{padding:30px;text-align:center;color:var(--muted)}
 </style>
 </head>
 <body>
-<header><div class="wrap"><h1>Team Submissions <span style="opacity:.7;font-weight:400">· admin</span></h1><button id="refresh">↻ Refresh</button></div></header>
+<header><div class="wrap"><h1>Entries <span style="opacity:.7;font-weight:400">· admin</span></h1><button id="refresh">↻ Refresh</button></div></header>
 <main>
+  <div class="card">
+    <h2>Register an entry</h2>
+    <div class="row">
+      <div><label for="tn">Team / entry name</label><input id="tn" placeholder="e.g. Brandon Dartt"></div>
+      <div><label for="em">Email</label><input id="em" type="email" placeholder="brandon.dartt@ferguson.com"></div>
+      <button id="add">Add entry</button>
+    </div>
+    <div class="msg" id="addMsg"></div>
+    <p class="pendingnote">The participant logs in at <b>/submit</b> with this email to make their picks.</p>
+  </div>
   <div class="count" id="count">Loading…</div>
   <div id="list"></div>
 </main>
 <script>
 function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function fmtScore(v){ if(v==null||v==='')return ''; v=+v; return v===0?'E':(v>0?'+'+v:''+v); }
+
 async function load(){
-  const r=await fetch('/api/submissions?_='+Date.now(),{cache:'no-store'});
-  const subs=await r.json();
-  document.getElementById('count').textContent=`${subs.length} submission${subs.length===1?'':'s'}`;
-  const list=document.getElementById('list');
-  if(!subs.length){ list.innerHTML='<div class="empty">No submissions yet.</div>'; return; }
-  list.innerHTML=subs.slice().reverse().map(s=>`
-    <div class="sub">
+  const r=await fetch('/api/entries?_='+Date.now(),{cache:'no-store'});
+  const list=await r.json();
+  const done=list.filter(e=>e.submitted).length;
+  document.getElementById('count').textContent=`${list.length} entr${list.length===1?'y':'ies'} · ${done} submitted · ${list.length-done} pending`;
+  const el=document.getElementById('list');
+  if(!list.length){ el.innerHTML='<div class="empty">No entries yet. Register one above.</div>'; return; }
+  // submitted first (newest), then pending
+  const sorted=list.slice().sort((a,b)=> (b.submitted?1:0)-(a.submitted?1:0) || (b.submittedAt||'').localeCompare(a.submittedAt||''));
+  el.innerHTML=sorted.map(s=>`
+    <div class="card sub">
       <div class="top">
-        <div class="nm">${esc(s.teamName)}</div>
-        <div class="meta">${esc(s.email)} · ${new Date(s.submittedAt).toLocaleString()}</div>
+        <div class="nm">${esc(s.teamName)} <span class="pill ${s.submitted?'done':'pending'}">${s.submitted?'submitted':'pending'}</span></div>
+        <div class="meta">${esc(s.email)}${s.submittedAt?' · '+new Date(s.submittedAt).toLocaleString():''}</div>
       </div>
-      <div class="grid">
+      ${s.submitted?`<div class="grid">
         <div><h3>Starters</h3><ul>${s.starters.map(p=>`<li>${esc(p)}</li>`).join('')}</ul></div>
         <div><h3>Bench</h3><ul>${s.bench.map(p=>`<li>${esc(p)}</li>`).join('')}</ul></div>
         <div><h3>Outright winner</h3><div class="win">${esc(s.pick)} ${fmtScore(s.pickScore)}</div></div>
-      </div>
+      </div>`:`<div class="pendingnote">Hasn’t submitted picks yet.</div>`}
     </div>`).join('');
 }
+
+async function addEntry(){
+  const msg=document.getElementById('addMsg'); msg.className='msg'; msg.textContent='Adding…';
+  const teamName=document.getElementById('tn').value.trim();
+  const email=document.getElementById('em').value.trim();
+  try{
+    const r=await fetch('/api/entries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({teamName,email})});
+    const d=await r.json();
+    if(!d.ok) throw new Error(d.error||'Failed');
+    msg.className='msg ok'; msg.textContent=`Added ${teamName}.`;
+    document.getElementById('tn').value=''; document.getElementById('em').value='';
+    load();
+  }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
+}
+document.getElementById('add').onclick=addEntry;
 document.getElementById('refresh').onclick=load;
 load();
 </script>
