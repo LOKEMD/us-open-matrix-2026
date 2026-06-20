@@ -19,7 +19,7 @@
   h1 small{display:block;font-weight:500;font-size:12.5px;opacity:.82;margin-top:3px}
   .whoami{font-size:12.5px;text-align:right}
   .whoami b{display:block;font-size:15px}
-  .whoami a{color:#cfe0f5;font-size:11.5px}
+  .whoami a{color:#cfe0f5;font-size:11.5px;cursor:pointer}
   main{max-width:780px;margin:0 auto;padding:18px 14px 70px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:16px;margin-bottom:16px}
   .card h2{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:0 0 12px}
@@ -29,14 +29,15 @@
   .row2>div{flex:1;min-width:200px}
   .slots{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .slot{display:flex;align-items:center;gap:8px;border:1px dashed var(--line);border-radius:9px;padding:9px 11px;min-height:44px;font-size:14px;background:#fbfdff}
-  .slot.filled{border-style:solid;background:#fff;cursor:pointer}
+  .slot.filled{border-style:solid;background:#fff}
+  .slot.filled.editable{cursor:pointer}
   .slot.bench{background:#f6f7fb}
   .slot .tag{font-size:9.5px;font-weight:700;letter-spacing:.4px;color:var(--muted);width:54px;flex:none}
   .slot.bench .tag{color:#3b5bdb}
   .slot .who{font-weight:600;flex:1}
   .slot .empty{color:#aab4c2;font-weight:500}
   .slot .x{color:var(--red);font-weight:700;font-size:16px;line-height:1;opacity:.6}
-  .slot.filled:hover .x{opacity:1}
+  .slot.filled.editable:hover .x{opacity:1}
   .counts{font-size:12px;color:var(--muted);margin-top:8px}
   .search{margin:0 0 10px}
   .plist{max-height:340px;overflow-y:auto;border:1px solid var(--line);border-radius:10px}
@@ -49,18 +50,29 @@
   .pitem.full{opacity:.4;cursor:not-allowed}
   button.primary{width:100%;font:inherit;font-weight:700;font-size:16px;cursor:pointer;border:none;border-radius:10px;padding:14px;background:var(--green);color:#fff}
   button.primary:disabled{background:#9bb6a6;cursor:not-allowed}
-  .banner{background:#eef6ff;border:1px solid #d6e6fb;border-radius:10px;padding:11px 14px;margin-bottom:16px;font-size:13.5px}
-  .banner b{color:var(--navy)}
+  .banner{border-radius:10px;padding:11px 14px;margin-bottom:16px;font-size:13.5px}
+  .banner.info{background:#eef6ff;border:1px solid #d6e6fb} .banner.info b{color:var(--navy)}
+  .banner.warn{background:#fff7e6;border:1px solid #f3e2bd;color:#7a5a00}
+  .banner.lock{background:#f1f3f7;border:1px solid var(--line);color:var(--muted)}
   .msg{font-size:13.5px;margin-top:10px}
   .msg.err{color:var(--red)} .msg.ok{color:var(--green)}
   .loading{padding:30px;text-align:center;color:var(--muted)}
   .note{font-size:12px;color:var(--muted);margin-top:6px}
+  .tlist{display:flex;flex-direction:column;gap:12px}
+  .tcard{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--line);border-radius:12px;padding:15px 16px;background:var(--card);box-shadow:var(--shadow);cursor:pointer}
+  .tcard:hover{border-color:#c7d6ea}
+  .tcard .tn{font-weight:700;font-size:17px}
+  .tcard .ts{font-size:12.5px;color:var(--muted);margin-top:3px}
+  .pill{font-size:10px;font-weight:700;letter-spacing:.4px;padding:3px 9px;border-radius:999px;text-transform:uppercase}
+  .pill.open{background:#e7f6ee;color:var(--green)} .pill.locked{background:#f1f3f7;color:var(--muted)}
+  .pill.done{background:#eef2ff;color:#3b5bdb}
+  .arrow{color:#c2cedd;font-size:20px}
   .done{text-align:center;padding:26px 12px}
   .done .big{font-size:40px}
   .done h2{border:none;text-transform:none;letter-spacing:0;font-size:20px;color:var(--ink);margin:10px 0 6px}
   .summary{text-align:left;max-width:420px;margin:14px auto 0;font-size:14px}
   .summary .li{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)}
-  a.again{display:inline-block;margin-top:16px;color:var(--navy);font-weight:600;cursor:pointer}
+  .back{display:inline-block;color:var(--navy);font-weight:600;cursor:pointer;margin-bottom:14px;font-size:14px}
   @media(max-width:520px){.slots{grid-template-columns:1fr}}
 </style>
 </head>
@@ -73,28 +85,28 @@
 
 <script src="data.js"></script>
 <script>
-const EVENT_ID = (window.MATRIX && MATRIX.eventId) || '401811952';
-let FIELD = [];          // array of player display names
-let entry = null;        // logged-in entry {teamName,email,starters,bench,pick,pickScore,submitted}
-let selected = [];       // up to 7: 0-4 starters, 5-6 bench
-let pick = '';
-let pickScore = '';      // predicted winning score (string)
-let q = '';
+let TOURNAMENTS = [];
+let entry = null;        // {teamName,email,isAdmin,picks:{}}
+let activeT = null;      // current tournament object
+let readonly = false;
+let FIELD = [], usingSample = false;
+let selected = [], pick = '', pickScore = '', q = '';
 
 const scoreOk = ()=> pickScore!=='' && Number.isFinite(+pickScore);
 function fmtScore(v){ if(v==null||v==='')return ''; v=+v; return v===0?'E':(v>0?'+'+v:''+v); }
 function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+const app = ()=>document.getElementById('app');
 
 // ---------- login ----------
-function renderLogin(prefillEmail){
+function renderLogin(prefill){
   document.getElementById('whoami').innerHTML='';
-  document.getElementById('app').innerHTML=`
+  app().innerHTML=`
     <div class="card">
       <h2>Log in</h2>
       <p style="font-size:14px;color:var(--muted);margin:0 0 12px">Enter the email your entry is registered under. It links to your team name.</p>
       <label for="loginEmail">Email</label>
-      <input id="loginEmail" type="email" placeholder="you@example.com" value="${esc(prefillEmail||'')}" autofocus>
-      <div style="margin-top:12px"><button class="primary" id="loginBtn">Load my team →</button></div>
+      <input id="loginEmail" type="email" placeholder="you@example.com" value="${esc(prefill||'')}">
+      <div style="margin-top:12px"><button class="primary" id="loginBtn">Continue →</button></div>
       <div class="msg" id="loginMsg"></div>
     </div>`;
   const inp=document.getElementById('loginEmail');
@@ -103,55 +115,104 @@ function renderLogin(prefillEmail){
   inp.onkeydown=e=>{ if(e.key==='Enter') go(); };
   inp.focus();
 }
-
 async function doLogin(email){
   const msg=document.getElementById('loginMsg'); msg.className='msg'; msg.textContent='Checking…';
   email=(email||'').trim();
   if(!email){ msg.className='msg err'; msg.textContent='Enter your email.'; return; }
   try{
-    const r=await fetch('/api/entry?email='+encodeURIComponent(email),{cache:'no-store'});
-    const d=await r.json();
-    if(!d.ok) throw new Error(d.error||'Not found');
-    entry=d.entry;
-    // prefill picks if they've submitted before
-    selected=[...(entry.starters||[]), ...(entry.bench||[])];
-    while(selected.length<7) selected.push(undefined);
-    pick=entry.pick||'';
-    pickScore=(entry.pickScore===0||entry.pickScore)?String(entry.pickScore):'';
-    q='';
-    if(!FIELD.length) await loadField();
-    renderPicker();
+    const [er,tr]=await Promise.all([
+      fetch('/api/entry?email='+encodeURIComponent(email),{cache:'no-store'}),
+      fetch('/api/tournaments',{cache:'no-store'})
+    ]);
+    const ed=await er.json();
+    if(!ed.ok) throw new Error(ed.error||'Not found');
+    entry=ed.entry; TOURNAMENTS=await tr.json();
+    renderTournaments();
   }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
 }
-
-function logout(){ entry=null; selected=[]; pick=''; pickScore=''; q=''; renderLogin(); }
-
-// ---------- field ----------
-async function loadField(){
-  try{
-    const r=await fetch(`https://site.api.espn.com/apis/site/v2/sports/golf/leaderboard?event=${EVENT_ID}&_=${Date.now()}`,{cache:'no-store'});
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    const d=await r.json();
-    const comp=d.events?.[0]?.competitions?.[0]?.competitors||[];
-    FIELD=comp.map(c=>c.athlete?.displayName).filter(Boolean).sort((a,b)=>a.localeCompare(b));
-  }catch(e){ FIELD=[]; }
+function logout(){ entry=null; activeT=null; renderLogin(); }
+function whoami(){
+  document.getElementById('whoami').innerHTML=`<span>Signed in as</span><b>${esc(entry.teamName)}</b><a id="logout">${esc(entry.email)} · log out</a>`;
+  document.getElementById('logout')?.addEventListener('click',logout);
 }
 
-// ---------- picker ----------
+// ---------- tournaments list ----------
+function renderTournaments(){
+  whoami();
+  const cards = TOURNAMENTS.map(t=>{
+    const has = entry.picks && entry.picks[t.key];
+    let pill, sub;
+    if(t.locked){ pill='<span class="pill locked">Locked</span>'; sub = has? 'Tournament '+t.status.toLowerCase()+' — view your picks' : 'Tournament '+t.status.toLowerCase()+' — no picks were submitted'; }
+    else { pill = has? '<span class="pill done">Submitted</span>' : '<span class="pill open">Open for picks</span>'; sub = has? 'You can still edit until it starts' : 'Make your selections'; }
+    return `<div class="tcard" data-t="${t.key}">
+      <div><div class="tn">${esc(t.name)}</div><div class="ts">${sub}</div></div>
+      <div style="display:flex;align-items:center;gap:12px">${pill}<span class="arrow">›</span></div>
+    </div>`;
+  }).join('');
+  app().innerHTML=`<div class="banner info">Pick or review your team for each major. You can only edit a tournament that hasn’t started yet.</div>
+    <div class="tlist">${cards}</div>`;
+  document.querySelectorAll('.tcard').forEach(el=> el.onclick=()=>openTournament(el.dataset.t));
+}
+
+// ---------- open a tournament ----------
+async function openTournament(key){
+  activeT = TOURNAMENTS.find(t=>t.key===key);
+  readonly = activeT.locked;
+  const prev = entry.picks?.[key];
+  selected = prev ? [...prev.starters, ...prev.bench] : [];
+  while(selected.length<7) selected.push(undefined);
+  pick = prev?.pick || '';
+  pickScore = (prev && (prev.pickScore===0||prev.pickScore)) ? String(prev.pickScore) : '';
+  q=''; FIELD=[]; usingSample=false;
+
+  if(readonly){ renderPicker(); return; }          // view-only: no field needed
+  app().innerHTML='<div class="loading">Loading the player field…</div>';
+  await loadField(activeT);
+  renderPicker();
+}
+
+async function fetchField(eventId){
+  const r=await fetch(`https://site.api.espn.com/apis/site/v2/sports/golf/leaderboard?event=${eventId}&_=${Date.now()}`,{cache:'no-store'});
+  if(!r.ok) return [];
+  const d=await r.json();
+  return (d.events?.[0]?.competitions?.[0]?.competitors||[]).map(c=>c.athlete?.displayName).filter(Boolean);
+}
+async function loadField(t){
+  try{
+    let f=await fetchField(t.fieldEventId);
+    if(!f.length && t.fallbackFieldEventId){ f=await fetchField(t.fallbackFieldEventId); usingSample=f.length>0; }
+    FIELD=f.sort((a,b)=>a.localeCompare(b));
+  }catch{ FIELD=[]; }
+}
+
+// ---------- picker / viewer ----------
 function slotHtml(i){
-  const isBench=i>=5; const tag=isBench?`Bench ${i-4}`:`Starter ${i+1}`;
-  const who=selected[i];
-  if(who) return `<div class="slot filled ${isBench?'bench':''}" data-slot="${i}"><span class="tag">${tag}</span><span class="who">${esc(who)}</span><span class="x">×</span></div>`;
-  return `<div class="slot ${isBench?'bench':''}"><span class="tag">${tag}</span><span class="empty">tap a player below</span></div>`;
+  const isBench=i>=5, tag=isBench?`Bench ${i-4}`:`Starter ${i+1}`, who=selected[i];
+  if(who) return `<div class="slot filled ${isBench?'bench':''} ${readonly?'':'editable'}" data-slot="${i}"><span class="tag">${tag}</span><span class="who">${esc(who)}</span>${readonly?'':'<span class="x">×</span>'}</div>`;
+  return `<div class="slot ${isBench?'bench':''}"><span class="tag">${tag}</span><span class="empty">${readonly?'—':'tap a player below'}</span></div>`;
 }
 
 function renderPicker(){
-  document.getElementById('whoami').innerHTML=`<span>Signed in as</span><b>${esc(entry.teamName)}</b><a id="logout">${esc(entry.email)} · log out</a>`;
-  document.getElementById('logout')?.addEventListener('click',logout);
+  whoami();
+  const back=`<span class="back" id="back">← All tournaments</span>`;
+
+  // read-only (locked tournament)
+  if(readonly){
+    const has=selected.some(Boolean);
+    app().innerHTML=`${back}
+      <div class="banner lock">🔒 <b>${esc(activeT.name)}</b> has started — picks are locked. ${has?'Here are the picks you submitted:':'No picks were submitted for this one.'}</div>
+      ${has?`<div class="card"><h2>${esc(activeT.name)} — your roster</h2>
+        <div class="slots">${[0,1,2,3,4,5,6].map(slotHtml).join('')}</div></div>
+      <div class="card"><h2>Outright winner pick</h2>
+        <div style="font-size:16px;font-weight:700">${esc(pick)} <span style="color:var(--green)">${fmtScore(pickScore)}</span></div></div>`:''}`;
+    document.getElementById('back').onclick=renderTournaments;
+    return;
+  }
 
   if(!FIELD.length){
-    document.getElementById('app').innerHTML=`<div class="card"><h2>Field not available yet</h2>
-      <p style="font-size:14px;color:var(--muted);margin:0">The player list for this major hasn’t been published yet. Come back once the field is announced to make your picks for <b>${esc(entry.teamName)}</b>.</p></div>`;
+    app().innerHTML=`${back}<div class="card"><h2>${esc(activeT.name)} — field not available yet</h2>
+      <p style="font-size:14px;color:var(--muted);margin:0">The player list for ${esc(activeT.name)} hasn’t been published yet. Come back once the field is announced to make your picks.</p></div>`;
+    document.getElementById('back').onclick=renderTournaments;
     return;
   }
 
@@ -160,9 +221,11 @@ function renderPicker(){
   const ql=q.trim().toLowerCase();
   const list=FIELD.filter(n=>!ql||n.toLowerCase().includes(ql));
   const ready = filled===7 && sCount===5 && bCount===2 && pick && scoreOk();
+  const existing = !!entry.picks?.[activeT.key];
 
-  document.getElementById('app').innerHTML=`
-    <div class="banner">Submitting for <b>${esc(entry.teamName)}</b>${entry.submitted?' — you’ve submitted before; update your picks below and re-submit.':''}</div>
+  app().innerHTML=`${back}
+    <div class="banner info">Submitting for <b>${esc(entry.teamName)}</b> · <b>${esc(activeT.name)}</b>${existing?' — you can update your picks below.':''}</div>
+    ${usingSample?`<div class="banner warn">⚠️ The field for ${esc(activeT.name)} isn’t announced yet — showing a <b>sample field</b> so you can try the flow. It’ll switch to the real field automatically once published.</div>`:''}
 
     <div class="card">
       <h2>Your roster</h2>
@@ -173,15 +236,11 @@ function renderPicker(){
     <div class="card">
       <h2>Outright winner pick</h2>
       <div class="row2">
-        <div>
-          <label for="pick">Who wins the tournament?</label>
+        <div><label for="pick">Who wins the tournament?</label>
           <select id="pick"><option value="">— select a player —</option>
-            ${FIELD.map(n=>`<option value="${esc(n)}" ${n===pick?'selected':''}>${esc(n)}</option>`).join('')}</select>
-        </div>
-        <div>
-          <label for="pickScore">Their winning score (to par)</label>
-          <input id="pickScore" type="number" step="1" inputmode="numeric" placeholder="e.g. -11  (0 = E)" value="${pickScore}">
-        </div>
+            ${FIELD.map(n=>`<option value="${esc(n)}" ${n===pick?'selected':''}>${esc(n)}</option>`).join('')}</select></div>
+        <div><label for="pickScore">Their winning score (to par)</label>
+          <input id="pickScore" type="number" step="1" inputmode="numeric" placeholder="e.g. -11  (0 = E)" value="${pickScore}"></div>
       </div>
     </div>
 
@@ -189,29 +248,28 @@ function renderPicker(){
       <h2>Player field — ${FIELD.length} players</h2>
       <input class="search" id="search" type="search" placeholder="Search players…" value="${esc(q)}">
       <div class="plist">${list.map(n=>{
-        const sel=selected.includes(n); const full=!sel && filled>=7;
+        const sel=selected.includes(n), full=!sel && filled>=7;
         return `<div class="pitem ${sel?'sel':''} ${full?'full':''}" data-name="${esc(n)}">
           <span class="who">${esc(n)}</span>${sel?'<span class="mark">✓ picked</span>':(full?'<span class="note">roster full</span>':'<span class="note">tap to add</span>')}</div>`;
       }).join('')}</div>
     </div>
 
-    <button class="primary" id="submit" ${ready?'':'disabled'}>${entry.submitted?'Update my team':'Submit team'}</button>
+    <button class="primary" id="submit" ${ready?'':'disabled'}>${existing?'Update my team':'Submit team'}</button>
     <div class="msg" id="msg"></div>
-    <p class="note">Demo — email login only, no confirmation yet. We’ll add email confirmation later.</p>`;
+    <p class="note">Demo — email login only, no confirmation yet.</p>`;
 
+  document.getElementById('back').onclick=renderTournaments;
   document.getElementById('pick').onchange=e=>{pick=e.target.value; toggleReady();};
   document.getElementById('pickScore').oninput=e=>{pickScore=e.target.value; toggleReady();};
   const s=document.getElementById('search');
   s.oninput=()=>{ q=s.value; const pos=s.selectionStart; renderPicker(); const ns=document.getElementById('search'); ns.focus(); ns.setSelectionRange(pos,pos); };
   document.querySelectorAll('.pitem').forEach(el=> el.onclick=()=>togglePlayer(el.dataset.name));
-  document.querySelectorAll('.slot.filled').forEach(el=> el.onclick=()=>{ selected[+el.dataset.slot]=undefined; compact(); renderPicker(); });
+  document.querySelectorAll('.slot.filled.editable').forEach(el=> el.onclick=()=>{ selected[+el.dataset.slot]=undefined; compact(); renderPicker(); });
   document.getElementById('submit').onclick=submit;
 }
-
 function toggleReady(){
   const filled=selected.filter(Boolean).length;
-  const ready = filled===7 && pick && scoreOk();
-  const b=document.getElementById('submit'); if(b) b.disabled=!ready;
+  const b=document.getElementById('submit'); if(b) b.disabled=!(filled===7 && pick && scoreOk());
 }
 function togglePlayer(name){
   const i=selected.indexOf(name);
@@ -224,38 +282,29 @@ function compact(){ const v=selected.filter(Boolean); selected=[...v]; while(sel
 
 async function submit(){
   const msg=document.getElementById('msg'); msg.className='msg'; msg.textContent='Submitting…';
-  const payload={ email:entry.email, starters:selected.slice(0,5), bench:selected.slice(5,7), pick, pickScore:parseInt(pickScore,10) };
+  const payload={ email:entry.email, tournament:activeT.key, starters:selected.slice(0,5), bench:selected.slice(5,7), pick, pickScore:parseInt(pickScore,10) };
   try{
     const r=await fetch('/api/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     const d=await r.json();
     if(!d.ok) throw new Error(d.error||'Submission failed');
+    entry.picks[activeT.key]={starters:payload.starters,bench:payload.bench,pick,pickScore:payload.pickScore};
     done(payload);
   }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
 }
-
 function done(p){
-  document.getElementById('app').innerHTML=`
-    <div class="card done">
-      <div class="big">✅</div>
-      <h2>Team submitted!</h2>
-      <p style="color:var(--muted);font-size:14px;margin:0">Thanks <b>${esc(entry.teamName)}</b> — your picks are in.</p>
-      <div class="summary">
-        <div class="li"><b>Starters</b></div>
-        ${p.starters.map(n=>`<div class="li"><span>${esc(n)}</span></div>`).join('')}
-        <div class="li"><b>Bench</b></div>
-        ${p.bench.map(n=>`<div class="li"><span>${esc(n)}</span></div>`).join('')}
-        <div class="li"><span><b>Outright winner</b></span><span>${esc(p.pick)} ${fmtScore(p.pickScore)}</span></div>
-      </div>
-      <a class="again" id="edit">Edit my picks →</a>
-    </div>`;
-  document.getElementById('edit').onclick=()=>{ entry.submitted=true; renderPicker(); };
+  app().innerHTML=`<div class="card done">
+    <div class="big">✅</div><h2>Picks submitted!</h2>
+    <p style="color:var(--muted);font-size:14px;margin:0"><b>${esc(entry.teamName)}</b> · ${esc(activeT.name)}</p>
+    <div class="summary">
+      <div class="li"><b>Starters</b></div>${p.starters.map(n=>`<div class="li"><span>${esc(n)}</span></div>`).join('')}
+      <div class="li"><b>Bench</b></div>${p.bench.map(n=>`<div class="li"><span>${esc(n)}</span></div>`).join('')}
+      <div class="li"><span><b>Outright winner</b></span><span>${esc(p.pick)} ${fmtScore(p.pickScore)}</span></div>
+    </div>
+    <p style="margin-top:18px"><span class="back" id="back2">← Back to tournaments</span></p></div>`;
+  document.getElementById('back2').onclick=renderTournaments;
 }
 
-// ---------- boot ----------
-(async function(){
-  loadField();            // warm up the field in the background
-  renderLogin();
-})();
+renderLogin();
 </script>
 </body>
 </html>
