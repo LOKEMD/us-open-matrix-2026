@@ -41,9 +41,14 @@
 <header><div class="wrap"><h1>Entries <span style="opacity:.7;font-weight:400">· admin</span></h1>
   <div class="whoami" id="whoami"></div></div></header>
 <main id="app"><div class="empty">Loading…</div></main>
+<script src="season.js"></script>
 <script>
 function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function fmtScore(v){ if(v==null||v==='')return ''; v=+v; return v===0?'E':(v>0?'+'+v:''+v); }
+const SEASONMAP={}; (window.SEASON||[]).forEach(e=>{ SEASONMAP[(e.name||'').trim().toLowerCase()]=e; });
+const SEASON_FIELD={masters:'masters', pga:'pga', theopen:'open'};
+function seasonResult(teamName,key){ const f=SEASON_FIELD[key]; if(!f) return undefined; const e=SEASONMAP[(teamName||'').trim().toLowerCase()]; if(!e) return undefined; const v=e[f]; return (v===0||v)?v:undefined; }
+function resStr(v){ return v==='DQ'?'DQ':fmtScore(v); }
 let adminEmail='', TOURN=[];
 
 function renderLogin(err){
@@ -104,8 +109,12 @@ async function load(){
       </div>
       ${TOURN.map(t=>{
         const p=e.picks&&e.picks[t.key];
-        let pill = t.locked ? '<span class="pill locked">Locked</span>' : (p?'<span class="pill done">Submitted</span>':'<span class="pill pending">Pending</span>');
-        const picks = p ? `<span class="picks">${p.starters.map(esc).join(', ')} <b>+</b> ${p.bench.map(esc).join(', ')} · winner <span class="win">${esc(p.pick)} ${fmtScore(p.pickScore)}</span></span>` : '<span class="picks" style="color:var(--muted)">—</span>';
+        const sres=seasonResult(e.teamName,t.key);
+        let pill = t.locked ? '<span class="pill locked">'+(t.status==='Final'?'Final':'Locked')+'</span>' : (p?'<span class="pill done">Submitted</span>':'<span class="pill pending">Pending</span>');
+        let picks;
+        if(p) picks=`<span class="picks">${p.starters.map(esc).join(', ')} <b>+</b> ${p.bench.map(esc).join(', ')} · winner <span class="win">${esc(p.pick)} ${fmtScore(p.pickScore)}</span></span>`;
+        else if(sres!==undefined) picks=`<span class="picks">final result <span class="win">${esc(resStr(sres))}</span></span>`;
+        else picks='<span class="picks" style="color:var(--muted)">—</span>';
         return `<div class="tline"><span class="tname">${esc(t.name)}</span>${pill}${picks}</div>`;
       }).join('')}
     </div>`).join('');

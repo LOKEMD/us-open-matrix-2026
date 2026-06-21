@@ -11,8 +11,10 @@ app.use(express.json({ limit: '64kb' }));
 // falls back to a sample field (the US Open field) for the demo and switches
 // to the real field automatically once ESPN publishes it.
 const TOURNAMENTS = [
-  { key: 'theopen', name: 'The Open',  eventId: '401811957', fieldEventId: '401811957', fallbackFieldEventId: '401811952', locked: false, current: true,  status: 'Upcoming' },
-  { key: 'usopen',  name: 'U.S. Open', eventId: '401811952', fieldEventId: '401811952', locked: true,  current: false, status: 'In progress' }
+  { key: 'theopen', name: 'The Open',        eventId: '401811957', fieldEventId: '401811957', fallbackFieldEventId: '401811952', locked: false, current: true,  status: 'Upcoming' },
+  { key: 'usopen',  name: 'U.S. Open',       eventId: '401811952', fieldEventId: '401811952', locked: true, current: false, status: 'In progress' },
+  { key: 'pga',     name: 'PGA Championship', eventId: '401811947', fieldEventId: '401811947', locked: true, current: false, status: 'Final' },
+  { key: 'masters', name: 'Masters',         eventId: '401811941', fieldEventId: '401811941', locked: true, current: false, status: 'Final' }
 ];
 
 // ---- Entries registry (demo: email login, no password) ----

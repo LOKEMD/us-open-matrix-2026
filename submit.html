@@ -84,7 +84,19 @@
 <main id="app"><div class="loading">Loading…</div></main>
 
 <script src="data.js"></script>
+<script src="season.js"></script>
 <script>
+// Final results for completed majors come from the season scoreboard (no
+// per-roster picks exist for those — they predate this tool).
+const SEASONMAP={}; (window.SEASON||[]).forEach(e=>{ SEASONMAP[(e.name||'').trim().toLowerCase()]=e; });
+const SEASON_FIELD={masters:'masters', pga:'pga', theopen:'open'};
+function seasonResult(teamName,key){
+  const f=SEASON_FIELD[key]; if(!f) return undefined;
+  const e=SEASONMAP[(teamName||'').trim().toLowerCase()]; if(!e) return undefined;
+  const v=e[f]; return (v===0||v)?v:undefined;
+}
+function resStr(v){ return v==='DQ'?'DQ':fmtScore(v); }
+
 let TOURNAMENTS = [];
 let entry = null;        // {teamName,email,isAdmin,picks:{}}
 let activeT = null;      // current tournament object
@@ -141,8 +153,14 @@ function renderTournaments(){
   whoami();
   const cards = TOURNAMENTS.map(t=>{
     const has = entry.picks && entry.picks[t.key];
+    const sres = seasonResult(entry.teamName, t.key);
     let pill, sub;
-    if(t.locked){ pill='<span class="pill locked">Locked</span>'; sub = has? 'Tournament '+t.status.toLowerCase()+' — view your picks' : 'Tournament '+t.status.toLowerCase()+' — no picks were submitted'; }
+    if(t.locked){
+      pill='<span class="pill locked">'+(t.status==='Final'?'Final':'Locked')+'</span>';
+      if(has) sub='Tournament '+t.status.toLowerCase()+' — view your picks';
+      else if(sres!==undefined) sub='Final result: '+resStr(sres)+' — tap to view';
+      else sub='Tournament '+t.status.toLowerCase()+' — no entry on file';
+    }
     else { pill = has? '<span class="pill done">Submitted</span>' : '<span class="pill open">Open for picks</span>'; sub = has? 'You can still edit until it starts' : 'Make your selections'; }
     return `<div class="tcard" data-t="${t.key}">
       <div><div class="tn">${esc(t.name)}</div><div class="ts">${sub}</div></div>
@@ -199,12 +217,22 @@ function renderPicker(){
   // read-only (locked tournament)
   if(readonly){
     const has=selected.some(Boolean);
+    const sres=seasonResult(entry.teamName, activeT.key);
+    const lockWord = activeT.status==='Final' ? 'is final' : 'has started';
+    let body;
+    if(has){
+      body=`<div class="card"><h2>${esc(activeT.name)} — your roster</h2>
+          <div class="slots">${[0,1,2,3,4,5,6].map(slotHtml).join('')}</div></div>
+        <div class="card"><h2>Outright winner pick</h2>
+          <div style="font-size:16px;font-weight:700">${esc(pick)} <span style="color:var(--green)">${fmtScore(pickScore)}</span></div></div>`;
+    } else if(sres!==undefined){
+      body=`<div class="card"><h2>${esc(activeT.name)} — final result</h2>
+          <div style="font-size:30px;font-weight:800" class="${sres==='DQ'?'':(sres<0?'under':(sres>0?'over':'even'))}">${esc(resStr(sres))}</div>
+          <p class="note">Per-golfer picks aren’t on file for this major — this is your final score from the season scoreboard.</p></div>`;
+    } else { body=''; }
+    const lead = has ? 'Here are the picks you submitted:' : (sres!==undefined ? 'Here’s how you finished:' : 'No entry is on file for this one.');
     app().innerHTML=`${back}
-      <div class="banner lock">🔒 <b>${esc(activeT.name)}</b> has started — picks are locked. ${has?'Here are the picks you submitted:':'No picks were submitted for this one.'}</div>
-      ${has?`<div class="card"><h2>${esc(activeT.name)} — your roster</h2>
-        <div class="slots">${[0,1,2,3,4,5,6].map(slotHtml).join('')}</div></div>
-      <div class="card"><h2>Outright winner pick</h2>
-        <div style="font-size:16px;font-weight:700">${esc(pick)} <span style="color:var(--green)">${fmtScore(pickScore)}</span></div></div>`:''}`;
+      <div class="banner lock">🔒 <b>${esc(activeT.name)}</b> ${lockWord} — picks are locked. ${lead}</div>${body}`;
     document.getElementById('back').onclick=renderTournaments;
     return;
   }
