@@ -80,6 +80,21 @@
   .stat.alive .statnum{color:var(--green)} .stat.dq .statnum{color:var(--red)}
   .statlbl b{color:var(--red)}
   @media(max-width:560px){.statnum{font-size:19px} .statlbl{font-size:9.5px} .stat{padding:9px 6px}}
+  .feature{background:linear-gradient(135deg,#fff,#fff8f6);border:1px solid #f3d8d0;border-left:4px solid var(--red);
+    border-radius:12px;box-shadow:var(--shadow);padding:14px 16px;margin-bottom:14px}
+  .feature .ft{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--red);font-weight:700}
+  .feature .fb{font-size:15px;margin-top:5px;line-height:1.45}
+  .feature .fb b{color:var(--ink)}
+  .statsec{background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);margin-bottom:14px;overflow:hidden}
+  .sectitle{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;padding:12px 14px 8px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .secsub{color:#9aa6b4;font-weight:500;text-transform:none;letter-spacing:0;font-size:11.5px}
+  .srow{display:flex;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid #eef1f5;font-size:14px}
+  .srow .r{color:var(--muted);font-variant-numeric:tabular-nums;width:26px;font-weight:700;font-size:12.5px;flex:none}
+  .srow .nm{font-weight:600;flex:none}
+  .srow .mid{flex:1;min-width:30px}
+  .srow .bar{height:6px;border-radius:3px;background:linear-gradient(90deg,var(--navy2),var(--navy));opacity:.85}
+  .srow .meta{color:var(--muted);font-size:12px;white-space:nowrap}
+  .srow .v{font-variant-numeric:tabular-nums;font-weight:700;text-align:right;min-width:46px;flex:none}
   .scrollx{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:12px}
   .scrollx table{min-width:600px}
   th.uso,td.uso{background:#fbfdff;box-shadow:inset 1px 0 0 var(--line),inset -1px 0 0 var(--line)}
@@ -106,6 +121,7 @@
       <div class="tab active" data-view="teams">Teams</div>
       <div class="tab" data-view="players">Players</div>
       <div class="tab" data-view="season">Season</div>
+      <div class="tab" data-view="stats">Stats</div>
     </div>
   </div>
 </header>
@@ -228,8 +244,11 @@ function scoreCell(v){ return `<span class="${cls(v)}">${fmt(v)}</span>`; }
 
 function render(){
   document.getElementById('round').textContent = META.label||META.round||'live';
+  document.querySelector('.toolbar').style.display = (view==='stats') ? 'none' : '';
+  document.querySelector('.legend').style.display = (view==='teams') ? '' : 'none';
   if(view==='teams') renderTeams();
   else if(view==='season') renderSeason();
+  else if(view==='stats') renderStats();
   else renderPlayers();
 }
 
@@ -368,6 +387,80 @@ function teamPanel(t,sc){
   h+='</tbody></table>';
   h+=`<div class="teamtot"><span>Team total (best 5 starters, subs for cut players)</span><b>${scoreCell(sc.val)}</b></div>`;
   return h;
+}
+
+function renderStats(){
+  const field=Object.values(PLAYERS);
+  if(!field.length){ document.getElementById('content').innerHTML='<div class="loading">Waiting for live data…</div>'; return; }
+  const TOT=MATRIX.teams.length;
+
+  // field / cut. Cut line = worst 36-hole total that still made it (so it stays
+  // correct after Rd 3 starts, when current totals include later rounds).
+  const cut=field.filter(p=>p.cut).length, made=field.length-cut;
+  const thirtySix=p=>(p.rounds?.[0]??0)+(p.rounds?.[1]??0);
+  const madeScores=field.filter(p=>!p.cut).map(thirtySix);
+  const cutLine=madeScores.length?Math.max(...madeScores):null;
+
+  // teams (teamScore returns {val,...})
+  const scored=MATRIX.teams.map(t=>({t,v:teamScore(t).val}));
+  const liveNums=scored.filter(x=>typeof x.v==='number').map(x=>x.v).sort((a,b)=>a-b);
+  const dqCount=scored.filter(x=>x.v==='DQ').length;
+  const needSub=MATRIX.teams.filter(t=>t.s.some(n=>ptotal(n)==='CUT')).length;
+  const unscathed=MATRIX.teams.filter(t=>![...t.s,...t.b].some(n=>ptotal(n)==='CUT')).length;
+  const leaderName=(scored.find(x=>x.v===liveNums[0])||{}).t?.name||'';
+
+  // ownership (merged by normalized name to avoid casing dupes)
+  const ownMap={};
+  MATRIX.teams.forEach(t=>[...new Set([...t.s,...t.b])].forEach(n=>{const k=norm(n);(ownMap[k]||(ownMap[k]={name:PLAYERS[k]?.name||n,count:0})).count++;}));
+  const owned=Object.values(ownMap).sort((a,b)=>b.count-a.count);
+
+  // winner picks
+  const wpMap={};
+  MATRIX.teams.forEach(t=>{const n=(t.pick||'').replace(/\s[-+]?\d+\*?$/,'').trim(); if(n){const k=norm(n);(wpMap[k]||(wpMap[k]={name:PLAYERS[k]?.name||n,count:0})).count++;}});
+  const wp=Object.values(wpMap).sort((a,b)=>b.count-a.count);
+
+  // tournament leaders + low rounds + cut casualties
+  const leaders=field.filter(p=>!p.cut).slice().sort((a,b)=>a.total-b.total).slice(0,5);
+  let lows=[]; field.forEach(p=>(p.rounds||[]).forEach((v,i)=>{ if(v!=null) lows.push({name:p.name,rd:i+1,v}); }));
+  lows.sort((a,b)=>a.v-b.v); lows=lows.slice(0,5);
+  const casualties=owned.filter(o=>ptotal(o.name)==='CUT').slice(0,6);
+
+  const tag=v=> v==='CUT'?'<span style="color:var(--red);font-weight:700;font-size:12px">CUT</span>':`<span class="${cls(v)}">${fmt(v)}</span>`;
+  const ownRow=(o,i)=>{const v=ptotal(o.name),pct=Math.round(o.count/TOT*100);
+    return `<div class="srow"><span class="r">${i+1}</span><span class="nm" style="width:140px">${esc(o.name)}</span>
+      <span class="mid"><div class="bar" style="width:${Math.max(pct,4)}%"></div></span>
+      <span class="meta">${o.count}·${pct}%</span><span class="v">${tag(v)}</span></div>`;};
+  const listRow=(name,meta,v,i)=>`<div class="srow"><span class="r">${i+1}</span><span class="nm" style="flex:1">${esc(name)}</span>${meta?`<span class="meta">${meta}</span>`:''}<span class="v">${v}</span></div>`;
+
+  let h=`<div class="statbar">
+    <div class="stat alive"><div class="statnum">${made}</div><div class="statlbl">Made cut</div></div>
+    <div class="stat dq"><div class="statnum">${cut}</div><div class="statlbl">Missed cut</div></div>
+    <div class="stat"><div class="statnum">${cutLine!=null?fmt(cutLine):'—'}</div><div class="statlbl">Cut line</div></div>
+    <div class="stat dq"><div class="statnum">${dqCount}</div><div class="statlbl">Teams DQ'd</div></div>
+  </div>`;
+
+  if(casualties.length){const c=casualties[0],pct=Math.round(c.count/TOT*100);
+    h+=`<div class="feature"><div class="ft">💀 Cut casualty of the day</div>
+      <div class="fb"><b>${esc(c.name)}</b> missed the cut — and he was in <b>${c.count} teams (${pct}%)</b> of the pool.</div></div>`;}
+
+  h+=`<div class="statsec"><div class="sectitle">Pool snapshot <span class="secsub">${TOT} teams</span></div>`
+    +`<div class="srow"><span class="nm" style="flex:1">Leader — <b>${esc(leaderName)}</b></span><span class="v">${liveNums.length?tag(liveNums[0]):'—'}</span></div>`
+    +`<div class="srow"><span class="nm" style="flex:1">Score range (non-DQ)</span><span class="v">${liveNums.length?fmt(liveNums[0])+' / '+fmt(liveNums[liveNums.length-1]):'—'}</span></div>`
+    +`<div class="srow"><span class="nm" style="flex:1">Teams that needed a sub</span><span class="v">${needSub}</span></div>`
+    +`<div class="srow"><span class="nm" style="flex:1">Unscathed by the cut</span><span class="v">${unscathed}</span></div></div>`;
+
+  h+=`<div class="statsec"><div class="sectitle">Most-owned golfers <span class="secsub">live score →</span></div>${owned.slice(0,8).map(ownRow).join('')}</div>`;
+
+  if(casualties.length>1)
+    h+=`<div class="statsec"><div class="sectitle">Biggest cut casualties <span class="secsub">most-owned who missed</span></div>${casualties.map((o,i)=>listRow(o.name,o.count+' teams',tag('CUT'),i)).join('')}</div>`;
+
+  h+=`<div class="statsec"><div class="sectitle">Outright winner picks <span class="secsub">who the pool backed</span></div>${wp.slice(0,6).map((o,i)=>listRow(o.name,o.count+' teams',tag(ptotal(o.name)),i)).join('')}</div>`;
+
+  h+=`<div class="statsec"><div class="sectitle">On the course <span class="secsub">tournament leaders</span></div>${leaders.map((p,i)=>listRow(p.name,'',tag(p.total),i)).join('')}</div>`;
+
+  h+=`<div class="statsec"><div class="sectitle">Lowest rounds <span class="secsub">single round, to par</span></div>${lows.map((l,i)=>listRow(l.name,'R'+l.rd,tag(l.v),i)).join('')}</div>`;
+
+  document.getElementById('content').innerHTML=h;
 }
 
 function renderPlayers(){
