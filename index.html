@@ -149,6 +149,7 @@
 </main>
 
 <script src="data.js"></script>
+<script src="masters.js"></script>
 <script src="season.js"></script>
 <script>
 const EVENT_ID = MATRIX.eventId, PAR = MATRIX.par;
@@ -170,11 +171,15 @@ let META={round:'',state:''};
 let major='usopen', sub='teams', query='';
 const SUBTITLES={usopen:'U.S. OPEN · SHINNECOCK HILLS', masters:'MASTERS · FINAL', pga:'PGA CHAMPIONSHIP · FINAL', theopen:'THE OPEN · UPCOMING', season:'SEASON STANDINGS'};
 
-// Favorited teams (by index) and players (by normalized name), persisted on this device.
+// Favorited teams and players, persisted on this device. Keys are namespaced by
+// the active major (e.g. "usopen:5", "masters:rory mcilroy") so the two majors
+// keep independent favorites.
 let FAVS = new Set(JSON.parse(localStorage.getItem('matrixFavs')||'[]'));
-function toggleFav(i){ FAVS.has(i)?FAVS.delete(i):FAVS.add(i); localStorage.setItem('matrixFavs',JSON.stringify([...FAVS])); render(); }
+function favTeamKey(i){ return major+':'+i; }
+function toggleFav(i){ const k=favTeamKey(i); FAVS.has(k)?FAVS.delete(k):FAVS.add(k); localStorage.setItem('matrixFavs',JSON.stringify([...FAVS])); render(); }
 let FAVP = new Set(JSON.parse(localStorage.getItem('matrixFavPlayers')||'[]'));
-function togglePlayerFav(id){ FAVP.has(id)?FAVP.delete(id):FAVP.add(id); localStorage.setItem('matrixFavPlayers',JSON.stringify([...FAVP])); render(); }
+function favPlayerKey(id){ return major+':'+id; }
+function togglePlayerFav(id){ const k=favPlayerKey(id); FAVP.has(k)?FAVP.delete(k):FAVP.add(k); localStorage.setItem('matrixFavPlayers',JSON.stringify([...FAVP])); render(); }
 let FAVSEA = new Set(JSON.parse(localStorage.getItem('matrixFavSeason')||'[]'));
 function toggleSeasonFav(i){ FAVSEA.has(i)?FAVSEA.delete(i):FAVSEA.add(i); localStorage.setItem('matrixFavSeason',JSON.stringify([...FAVSEA])); render(); }
 
@@ -228,7 +233,14 @@ function parse(d){
   }
 }
 
-function P(name){ return PLAYERS[norm(name)] || {name, rounds:[null,null,null,null], total:0, cut:false, thru:'—', missing:true}; }
+// Active dataset: U.S. Open is live (PLAYERS rebuilt each fetch); Masters is the
+// baked-in final data. Same {teams, players} shape, so the same engine renders both.
+let CUR = {teams: MATRIX.teams, players: PLAYERS};
+function activeDS(){
+  if(major==='masters') return {teams:MASTERS.teams, players:MASTERS.players};
+  return {teams:MATRIX.teams, players:PLAYERS};
+}
+function P(name){ return CUR.players[norm(name)] || {name, rounds:[null,null,null,null], total:0, cut:false, thru:'—', missing:true}; }
 function ptotal(name){ const p=P(name); return p.cut?'CUT':p.total; }
 
 // EXACT mirror of the spreadsheet scoring
@@ -252,7 +264,10 @@ function teamScore(t){
 
 function scoreCell(v){ return `<span class="${cls(v)}">${fmt(v)}</span>`; }
 
+const FULL_MATRIX={usopen:1, masters:1};   // majors with the full Teams/Players/Stats matrix
 function render(){
+  CUR = activeDS();
+  const full = !!FULL_MATRIX[major];
   document.getElementById('subtitle').textContent = SUBTITLES[major]||'';
   // header status pill: live only for the U.S. Open; static label otherwise
   const liveLbl = META.label||META.round||'live';
@@ -260,14 +275,13 @@ function render(){
     : (major==='season'?'All majors':(major==='theopen'?'Upcoming':'Final'));
   document.getElementById('updated').style.display = major==='usopen' ? '' : 'none';
   document.querySelector('#statuspill .dot').style.display = major==='usopen' ? '' : 'none';
-  document.getElementById('subtabs').style.display = major==='usopen' ? '' : 'none';
+  document.getElementById('subtabs').style.display = full ? '' : 'none';
 
-  const v = major==='usopen' ? sub : major;
+  const v = full ? sub : major;
   document.querySelector('.toolbar').style.display = (v==='stats'||v==='theopen') ? 'none' : '';
-  document.querySelector('.legend').style.display = (major==='usopen' && sub==='teams') ? '' : 'none';
+  document.querySelector('.legend').style.display = (full && sub==='teams') ? '' : 'none';
 
   if(major==='season') renderSeason();
-  else if(major==='masters') renderMajorStandings('masters','Masters');
   else if(major==='pga') renderMajorStandings('pga','PGA Championship');
   else if(major==='theopen') renderOpenStatus();
   else if(sub==='players') renderPlayers();
@@ -386,7 +400,7 @@ function renderSeason(){
 }
 
 function renderTeams(){
-  const rows = MATRIX.teams.map((t,i)=>({t, i, sc:teamScore(t)}));
+  const rows = CUR.teams.map((t,i)=>({t, i, sc:teamScore(t)}));
   const rank = rows.filter(r=>typeof r.sc.val==='number').sort((a,b)=>a.sc.val-b.sc.val);
   const dq = rows.filter(r=>typeof r.sc.val!=='number');
   let ordered=[]; let pos=0,prev=null,seen=0;
@@ -396,13 +410,13 @@ function renderTeams(){
   const q=query.trim().toLowerCase();
   const vis = ordered.filter(r=> !q || r.t.name.toLowerCase().includes(q) ||
       r.t.s.concat(r.t.b,[r.t.pick]).some(n=>n.toLowerCase().includes(q)));
-  document.getElementById('count').textContent=`${vis.length} of ${MATRIX.teams.length} teams`;
+  document.getElementById('count').textContent=`${vis.length} of ${CUR.teams.length} teams`;
 
-  const favs = vis.filter(r=>FAVS.has(r.i));   // pinned to top, still ordered by rank
-  const rest = vis.filter(r=>!FAVS.has(r.i));
+  const favs = vis.filter(r=>FAVS.has(favTeamKey(r.i)));   // pinned to top, still ordered by rank
+  const rest = vis.filter(r=>!FAVS.has(favTeamKey(r.i)));
 
   const rowHtml = r=>{
-    const v=r.sc.val, fav=FAVS.has(r.i);
+    const v=r.sc.val, fav=FAVS.has(favTeamKey(r.i));
     return `<tr class="team ${fav?'favrow':''}">
       <td class="starcell"><button class="star-btn ${fav?'on':''}" data-fav="${r.i}" aria-label="Favorite ${esc(r.t.name)}">★</button></td>
       <td class="rk">${r.pos}</td>
@@ -453,9 +467,9 @@ function teamPanel(t,sc){
 }
 
 function renderStats(){
-  const field=Object.values(PLAYERS);
+  const field=Object.values(CUR.players);
   if(!field.length){ document.getElementById('content').innerHTML='<div class="loading">Waiting for live data…</div>'; return; }
-  const TOT=MATRIX.teams.length;
+  const TOT=CUR.teams.length;
 
   // field / cut. Cut line = worst 36-hole total that still made it (so it stays
   // correct after Rd 3 starts, when current totals include later rounds).
@@ -465,21 +479,21 @@ function renderStats(){
   const cutLine=madeScores.length?Math.max(...madeScores):null;
 
   // teams (teamScore returns {val,...})
-  const scored=MATRIX.teams.map(t=>({t,v:teamScore(t).val}));
+  const scored=CUR.teams.map(t=>({t,v:teamScore(t).val}));
   const liveNums=scored.filter(x=>typeof x.v==='number').map(x=>x.v).sort((a,b)=>a-b);
   const dqCount=scored.filter(x=>x.v==='DQ').length;
-  const needSub=MATRIX.teams.filter(t=>t.s.some(n=>ptotal(n)==='CUT')).length;
-  const unscathed=MATRIX.teams.filter(t=>![...t.s,...t.b].some(n=>ptotal(n)==='CUT')).length;
+  const needSub=CUR.teams.filter(t=>t.s.some(n=>ptotal(n)==='CUT')).length;
+  const unscathed=CUR.teams.filter(t=>![...t.s,...t.b].some(n=>ptotal(n)==='CUT')).length;
   const leaderName=(scored.find(x=>x.v===liveNums[0])||{}).t?.name||'';
 
   // ownership (merged by normalized name to avoid casing dupes)
   const ownMap={};
-  MATRIX.teams.forEach(t=>[...new Set([...t.s,...t.b])].forEach(n=>{const k=norm(n);(ownMap[k]||(ownMap[k]={name:PLAYERS[k]?.name||n,count:0})).count++;}));
+  CUR.teams.forEach(t=>[...new Set([...t.s,...t.b])].forEach(n=>{const k=norm(n);(ownMap[k]||(ownMap[k]={name:CUR.players[k]?.name||n,count:0})).count++;}));
   const owned=Object.values(ownMap).sort((a,b)=>b.count-a.count);
 
   // winner picks
   const wpMap={};
-  MATRIX.teams.forEach(t=>{const n=(t.pick||'').replace(/\s[-+]?\d+\*?$/,'').trim(); if(n){const k=norm(n);(wpMap[k]||(wpMap[k]={name:PLAYERS[k]?.name||n,count:0})).count++;}});
+  CUR.teams.forEach(t=>{const n=(t.pick||'').replace(/\s[-+]?\d+\*?$/,'').trim(); if(n){const k=norm(n);(wpMap[k]||(wpMap[k]={name:CUR.players[k]?.name||n,count:0})).count++;}});
   const wp=Object.values(wpMap).sort((a,b)=>b.count-a.count);
 
   // tournament leaders + low rounds + cut casualties
@@ -527,7 +541,7 @@ function renderStats(){
 }
 
 function renderPlayers(){
-  const arr=Object.values(PLAYERS).slice().sort((a,b)=>{
+  const arr=Object.values(CUR.players).slice().sort((a,b)=>{
     if(a.cut!==b.cut) return a.cut?1:-1;
     return a.total-b.total;
   });
@@ -539,11 +553,11 @@ function renderPlayers(){
   const vis=arr.filter(p=>!q||p.name.toLowerCase().includes(q));
   document.getElementById('count').textContent=`${vis.length} players in the field`;
 
-  const favs=vis.filter(p=>FAVP.has(norm(p.name)));   // pinned to top, still ordered by score
-  const rest=vis.filter(p=>!FAVP.has(norm(p.name)));
+  const favs=vis.filter(p=>FAVP.has(favPlayerKey(norm(p.name))));   // pinned to top, still ordered by score
+  const rest=vis.filter(p=>!FAVP.has(favPlayerKey(norm(p.name))));
 
   const rowHtml=p=>{
-    const id=norm(p.name), fav=FAVP.has(id);
+    const id=norm(p.name), fav=FAVP.has(favPlayerKey(id));
     const rk=p.cut?'<span style="color:var(--red);font-size:11px">CUT</span>':p._pos;
     const r=i=>{const v=p.rounds?.[i]; return `<td class="sc ${v==null?'':cls(v)}" style="font-weight:600">${v==null?'–':fmt(v)}</td>`};
     const tot=p.cut?'CUT':p.total;
