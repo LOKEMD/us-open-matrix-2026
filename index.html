@@ -25,9 +25,12 @@
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(57,217,138,.6)}70%{box-shadow:0 0 0 8px rgba(57,217,138,0)}100%{box-shadow:0 0 0 0 rgba(57,217,138,0)}}
   button{font:inherit;cursor:pointer;border:none;border-radius:8px;padding:7px 12px;background:rgba(255,255,255,.16);color:#fff;font-weight:600}
   button:hover{background:rgba(255,255,255,.26)}
-  .tabs{display:flex;gap:6px;margin-top:14px}
-  .tab{background:rgba(255,255,255,.10);padding:8px 16px;border-radius:8px 8px 0 0;font-weight:600;font-size:14px}
+  .tabs{display:flex;gap:6px;margin-top:14px;flex-wrap:wrap}
+  .tab{background:rgba(255,255,255,.10);padding:8px 16px;border-radius:8px 8px 0 0;font-weight:600;font-size:14px;cursor:pointer}
   .tab.active{background:var(--paper);color:var(--navy)}
+  .subtabs{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+  .subtabs .tab{border-radius:999px;padding:6px 14px;font-size:13px;background:rgba(255,255,255,.08)}
+  .subtabs .tab.active{background:rgba(255,255,255,.92);color:var(--navy)}
   main{max-width:920px;margin:0 auto;padding:16px 14px 60px}
   .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
   input[type=search]{flex:1;min-width:180px;font:inherit;padding:9px 12px;border:1px solid var(--line);
@@ -110,18 +113,24 @@
 <header>
   <div class="wrap">
     <div class="htop">
-      <h1>2026 U.S. Open — Matrix Pool <small>SHINNECOCK HILLS · PAR 70</small></h1>
+      <h1>2026 Majors Pool <small id="subtitle">U.S. OPEN · SHINNECOCK HILLS</small></h1>
       <div class="status">
-        <span class="pill"><span class="dot"></span><span id="round">Loading…</span></span>
+        <span class="pill" id="statuspill"><span class="dot"></span><span id="round">Loading…</span></span>
         <span class="pill" id="updated">—</span>
         <button id="refresh">↻ Refresh</button>
       </div>
     </div>
-    <div class="tabs">
-      <div class="tab active" data-view="teams">Teams</div>
-      <div class="tab" data-view="players">Players</div>
-      <div class="tab" data-view="season">Season</div>
-      <div class="tab" data-view="stats">Stats</div>
+    <div class="tabs" id="majortabs">
+      <div class="tab" data-major="masters">Masters</div>
+      <div class="tab" data-major="pga">PGA</div>
+      <div class="tab active" data-major="usopen">U.S. Open</div>
+      <div class="tab" data-major="theopen">The Open</div>
+      <div class="tab" data-major="season">Season</div>
+    </div>
+    <div class="subtabs" id="subtabs">
+      <div class="tab active" data-sub="teams">Teams</div>
+      <div class="tab" data-sub="players">Players</div>
+      <div class="tab" data-sub="stats">Stats</div>
     </div>
   </div>
 </header>
@@ -158,7 +167,8 @@ function cls(v){ if(v==='CUT'||v==='DQ')return ''; if(v>0)return 'over'; if(v<0)
 
 let PLAYERS={};   // normname -> {name, rounds:[to-par per round], total, thru, status, cut}
 let META={round:'',state:''};
-let view='teams', query='';
+let major='usopen', sub='teams', query='';
+const SUBTITLES={usopen:'U.S. OPEN · SHINNECOCK HILLS', masters:'MASTERS · FINAL', pga:'PGA CHAMPIONSHIP · FINAL', theopen:'THE OPEN · UPCOMING', season:'SEASON STANDINGS'};
 
 // Favorited teams (by index) and players (by normalized name), persisted on this device.
 let FAVS = new Set(JSON.parse(localStorage.getItem('matrixFavs')||'[]'));
@@ -243,13 +253,66 @@ function teamScore(t){
 function scoreCell(v){ return `<span class="${cls(v)}">${fmt(v)}</span>`; }
 
 function render(){
-  document.getElementById('round').textContent = META.label||META.round||'live';
-  document.querySelector('.toolbar').style.display = (view==='stats') ? 'none' : '';
-  document.querySelector('.legend').style.display = (view==='teams') ? '' : 'none';
-  if(view==='teams') renderTeams();
-  else if(view==='season') renderSeason();
-  else if(view==='stats') renderStats();
-  else renderPlayers();
+  document.getElementById('subtitle').textContent = SUBTITLES[major]||'';
+  // header status pill: live only for the U.S. Open; static label otherwise
+  const liveLbl = META.label||META.round||'live';
+  document.getElementById('round').textContent = major==='usopen' ? liveLbl
+    : (major==='season'?'All majors':(major==='theopen'?'Upcoming':'Final'));
+  document.getElementById('updated').style.display = major==='usopen' ? '' : 'none';
+  document.querySelector('#statuspill .dot').style.display = major==='usopen' ? '' : 'none';
+  document.getElementById('subtabs').style.display = major==='usopen' ? '' : 'none';
+
+  const v = major==='usopen' ? sub : major;
+  document.querySelector('.toolbar').style.display = (v==='stats'||v==='theopen') ? 'none' : '';
+  document.querySelector('.legend').style.display = (major==='usopen' && sub==='teams') ? '' : 'none';
+
+  if(major==='season') renderSeason();
+  else if(major==='masters') renderMajorStandings('masters','Masters');
+  else if(major==='pga') renderMajorStandings('pga','PGA Championship');
+  else if(major==='theopen') renderOpenStatus();
+  else if(sub==='players') renderPlayers();
+  else if(sub==='stats') renderStats();
+  else renderTeams();
+}
+
+// Pool standings for a completed major, from the season scoreboard scores.
+function renderMajorStandings(key,label){
+  const rows=SEASON.map((s,i)=>({s,i,v:s[key]}));
+  const ranked=rows.filter(r=>typeof r.v==='number').sort((a,b)=>a.v-b.v);
+  const dq=rows.filter(r=>r.v==='DQ'), none=rows.filter(r=>r.v==null);
+  let ordered=[],pos=0,prev=null,seen=0;
+  for(const r of ranked){ seen++; if(r.v!==prev){pos=seen;prev=r.v;} ordered.push({...r,pos}); }
+  for(const r of dq.concat(none)) ordered.push({...r,pos:'—'});
+
+  const q=query.trim().toLowerCase();
+  const vis=ordered.filter(r=>!q||r.s.name.toLowerCase().includes(q));
+  document.getElementById('count').textContent=`${label} · ${ranked.length} scored`;
+  const favs=vis.filter(r=>FAVSEA.has(r.i)), rest=vis.filter(r=>!FAVSEA.has(r.i));
+  const row=r=>{
+    const fav=FAVSEA.has(r.i);
+    const val = r.v==='DQ' ? '<span style="color:var(--red);font-weight:700">DQ</span>'
+      : (r.v==null ? '<span style="color:var(--muted)">—</span>' : scoreCell(r.v));
+    return `<tr class="team ${fav?'favrow':''}">
+      <td class="starcell"><button class="star-btn ${fav?'on':''}" data-favsea="${r.i}" aria-label="Favorite ${esc(r.s.name)}">★</button></td>
+      <td class="rk">${r.pos}</td><td class="nm">${esc(r.s.name)}</td><td class="sc"><b>${val}</b></td></tr>`;
+  };
+  let h='<table><thead><tr><th class="starcell"></th><th class="rk">#</th><th>Entry</th><th class="sc">'+esc(label)+'</th></tr></thead><tbody>';
+  if(favs.length){ h+='<tr class="divider"><td colspan="4">★ Favorites</td></tr>'; favs.forEach(r=>h+=row(r)); h+='<tr class="divider"><td colspan="4">All entries</td></tr>'; }
+  rest.forEach(r=>h+=row(r)); h+='</tbody></table>';
+  const c=document.getElementById('content'); c.innerHTML=h;
+  c.querySelectorAll('.star-btn').forEach(b=>b.onclick=e=>{e.stopPropagation(); toggleSeasonFav(+b.dataset.favsea);});
+}
+
+function renderOpenStatus(){
+  document.getElementById('count').textContent='';
+  document.getElementById('content').innerHTML=`
+    <div class="feature" style="border-left-color:var(--gold);background:linear-gradient(135deg,#fff,#fffdf3);border-color:#f0e3bd">
+      <div class="ft" style="color:#9a7b0a">⛳ The Open — not started</div>
+      <div class="fb">The Open Championship hasn’t teed off yet, so there are no scores to show. The field and live scoring will appear here once it’s underway.</div>
+    </div>
+    <div class="statsec"><div class="sectitle">Get your picks in</div>
+      <div class="srow"><span class="nm" style="flex:1">Submit your team for The Open</span><a href="/submit" style="color:var(--navy);font-weight:700;text-decoration:none">/submit →</a></div>
+    </div>`;
 }
 
 // Team-name normalizer that keeps digits (team names like "513B", "8NOWMAN").
@@ -504,9 +567,13 @@ function renderPlayers(){
 
 function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 
-document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
-  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
-  t.classList.add('active'); view=t.dataset.view; render();
+document.querySelectorAll('#majortabs .tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('#majortabs .tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active'); major=t.dataset.major; render();
+});
+document.querySelectorAll('#subtabs .tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('#subtabs .tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active'); sub=t.dataset.sub; render();
 });
 document.getElementById('q').addEventListener('input',e=>{query=e.target.value;render();});
 document.getElementById('refresh').onclick=load;
