@@ -150,6 +150,7 @@
 
 <script src="data.js"></script>
 <script src="masters.js"></script>
+<script src="pga.js"></script>
 <script src="season.js"></script>
 <script>
 const EVENT_ID = MATRIX.eventId, PAR = MATRIX.par;
@@ -238,6 +239,7 @@ function parse(d){
 let CUR = {teams: MATRIX.teams, players: PLAYERS};
 function activeDS(){
   if(major==='masters') return {teams:MASTERS.teams, players:MASTERS.players};
+  if(major==='pga') return {teams:PGA.teams, players:PGA.players};
   return {teams:MATRIX.teams, players:PLAYERS};
 }
 function P(name){ return CUR.players[norm(name)] || {name, rounds:[null,null,null,null], total:0, cut:false, thru:'—', missing:true}; }
@@ -264,7 +266,7 @@ function teamScore(t){
 
 function scoreCell(v){ return `<span class="${cls(v)}">${fmt(v)}</span>`; }
 
-const FULL_MATRIX={usopen:1, masters:1};   // majors with the full Teams/Players/Stats matrix
+const FULL_MATRIX={usopen:1, masters:1, pga:1};   // majors with the full Teams/Players/Stats matrix
 function render(){
   CUR = activeDS();
   const full = !!FULL_MATRIX[major];
@@ -282,7 +284,6 @@ function render(){
   document.querySelector('.legend').style.display = (full && sub==='teams') ? '' : 'none';
 
   if(major==='season') renderSeason();
-  else if(major==='pga') renderMajorStandings('pga','PGA Championship');
   else if(major==='theopen') renderOpenStatus();
   else if(sub==='players') renderPlayers();
   else if(sub==='stats') renderStats();
