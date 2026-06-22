@@ -401,7 +401,8 @@ function renderSeason(){
 }
 
 function renderTeams(){
-  const rows = CUR.teams.map((t,i)=>({t, i, sc:teamScore(t)}));
+  // keep original index i (favorites key on it); drop teams with no roster (didn't enter this major)
+  const rows = CUR.teams.map((t,i)=>({t, i, sc:teamScore(t)})).filter(r=>r.t.s.length>0);
   const rank = rows.filter(r=>typeof r.sc.val==='number').sort((a,b)=>a.sc.val-b.sc.val);
   const dq = rows.filter(r=>typeof r.sc.val!=='number');
   let ordered=[]; let pos=0,prev=null,seen=0;
@@ -411,7 +412,7 @@ function renderTeams(){
   const q=query.trim().toLowerCase();
   const vis = ordered.filter(r=> !q || r.t.name.toLowerCase().includes(q) ||
       r.t.s.concat(r.t.b,[r.t.pick]).some(n=>n.toLowerCase().includes(q)));
-  document.getElementById('count').textContent=`${vis.length} of ${CUR.teams.length} teams`;
+  document.getElementById('count').textContent=`${vis.length} of ${rows.length} teams`;
 
   const favs = vis.filter(r=>FAVS.has(favTeamKey(r.i)));   // pinned to top, still ordered by rank
   const rest = vis.filter(r=>!FAVS.has(favTeamKey(r.i)));
@@ -470,7 +471,8 @@ function teamPanel(t,sc){
 function renderStats(){
   const field=Object.values(CUR.players);
   if(!field.length){ document.getElementById('content').innerHTML='<div class="loading">Waiting for live data…</div>'; return; }
-  const TOT=CUR.teams.length;
+  const teamsEntered=CUR.teams.filter(t=>t.s.length>0);   // exclude teams that didn't enter this major
+  const TOT=teamsEntered.length;
 
   // field / cut. Cut line = worst 36-hole total that still made it (so it stays
   // correct after Rd 3 starts, when current totals include later rounds).
@@ -480,21 +482,21 @@ function renderStats(){
   const cutLine=madeScores.length?Math.max(...madeScores):null;
 
   // teams (teamScore returns {val,...})
-  const scored=CUR.teams.map(t=>({t,v:teamScore(t).val}));
+  const scored=teamsEntered.map(t=>({t,v:teamScore(t).val}));
   const liveNums=scored.filter(x=>typeof x.v==='number').map(x=>x.v).sort((a,b)=>a-b);
   const dqCount=scored.filter(x=>x.v==='DQ').length;
-  const needSub=CUR.teams.filter(t=>t.s.some(n=>ptotal(n)==='CUT')).length;
-  const unscathed=CUR.teams.filter(t=>![...t.s,...t.b].some(n=>ptotal(n)==='CUT')).length;
+  const needSub=teamsEntered.filter(t=>t.s.some(n=>ptotal(n)==='CUT')).length;
+  const unscathed=teamsEntered.filter(t=>![...t.s,...t.b].some(n=>ptotal(n)==='CUT')).length;
   const leaderName=(scored.find(x=>x.v===liveNums[0])||{}).t?.name||'';
 
   // ownership (merged by normalized name to avoid casing dupes)
   const ownMap={};
-  CUR.teams.forEach(t=>[...new Set([...t.s,...t.b])].forEach(n=>{const k=norm(n);(ownMap[k]||(ownMap[k]={name:CUR.players[k]?.name||n,count:0})).count++;}));
+  teamsEntered.forEach(t=>[...new Set([...t.s,...t.b])].forEach(n=>{const k=norm(n);(ownMap[k]||(ownMap[k]={name:CUR.players[k]?.name||n,count:0})).count++;}));
   const owned=Object.values(ownMap).sort((a,b)=>b.count-a.count);
 
   // winner picks
   const wpMap={};
-  CUR.teams.forEach(t=>{const n=(t.pick||'').replace(/\s[-+]?\d+\*?$/,'').trim(); if(n){const k=norm(n);(wpMap[k]||(wpMap[k]={name:CUR.players[k]?.name||n,count:0})).count++;}});
+  teamsEntered.forEach(t=>{const n=(t.pick||'').replace(/\s[-+]?\d+\*?$/,'').trim(); if(n){const k=norm(n);(wpMap[k]||(wpMap[k]={name:CUR.players[k]?.name||n,count:0})).count++;}});
   const wp=Object.values(wpMap).sort((a,b)=>b.count-a.count);
 
   // tournament leaders + low rounds + cut casualties
