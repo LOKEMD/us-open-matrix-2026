@@ -93,10 +93,28 @@ async function load(){
       <div class="msg" id="addMsg"></div>
       <p style="color:var(--muted);font-size:12px;margin-top:8px">The participant logs in at <b>/submit</b> with this email to make their picks.</p>
     </div>
+
+    <div class="card">
+      <h2>Bulk add</h2>
+      <label for="bulk">Paste one per line — <code>Team Name, email@example.com</code></label>
+      <textarea id="bulk" rows="5" style="width:100%;font:inherit;padding:9px 11px;border:1px solid var(--line);border-radius:9px" placeholder="Bengal Nation, jane@example.com&#10;Putt Pirates, sam@example.com"></textarea>
+      <div style="margin-top:10px"><button class="go" id="bulkAdd">Add all</button></div>
+      <div class="msg" id="bulkMsg"></div>
+    </div>
+
+    <div class="card">
+      <h2>Email players</h2>
+      <p style="color:var(--muted);font-size:13px;margin:0 0 10px">Send everyone their invite + pick link for The Open.</p>
+      <button class="go" id="emailAll">Email everyone an invite</button>
+      <div class="msg" id="emailMsg"></div>
+    </div>
+
     <div class="count" id="count"></div>
     <div id="list"></div>`;
   document.getElementById('out').onclick=()=>{adminEmail=''; renderLogin();};
   document.getElementById('add').onclick=addEntry;
+  document.getElementById('bulkAdd').onclick=addBulk;
+  document.getElementById('emailAll').onclick=()=>sendInvites(null,document.getElementById('emailMsg'));
 
   const subs=list.filter(e=>TOURN.some(t=>e.picks&&e.picks[t.key])).length;
   document.getElementById('count').textContent=`${list.length} entr${list.length===1?'y':'ies'} · ${subs} with at least one submission`;
@@ -105,7 +123,7 @@ async function load(){
     list.map(e=>`<div class="card sub">
       <div class="top">
         <div class="nm">${esc(e.teamName)} ${e.isAdmin?'<span class="adminbadge">ADMIN</span>':''}</div>
-        <div class="meta">${esc(e.email)}</div>
+        <div class="meta">${esc(e.email)} · <a class="invite" data-email="${esc(e.email)}" style="color:var(--green);font-weight:600;cursor:pointer">invite</a> <span class="im" data-im="${esc(e.email)}"></span></div>
       </div>
       ${TOURN.map(t=>{
         const p=e.picks&&e.picks[t.key];
@@ -118,6 +136,34 @@ async function load(){
         return `<div class="tline"><span class="tname">${esc(t.name)}</span>${pill}${picks}</div>`;
       }).join('')}
     </div>`).join('');
+  document.querySelectorAll('.invite').forEach(a=>a.onclick=()=>{
+    const span=document.querySelector('.im[data-im="'+a.dataset.email.replace(/"/g,'')+'"]');
+    sendInvites([a.dataset.email], span);
+  });
+}
+
+async function addBulk(){
+  const msg=document.getElementById('bulkMsg'); msg.className='msg'; msg.textContent='Adding…';
+  try{
+    const r=await fetch('/api/entries/bulk',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({adminEmail, text:document.getElementById('bulk').value})});
+    const d=await r.json();
+    if(!d.ok && d.error) throw new Error(d.error);
+    msg.className='msg ok'; msg.textContent=`Added ${d.added}, skipped ${d.skipped} already-registered${d.errors&&d.errors.length?', '+d.errors.length+' unparseable':''}.`;
+    document.getElementById('bulk').value=''; load();
+  }catch(e){ msg.className='msg err'; msg.textContent=e.message; }
+}
+
+async function sendInvites(emails, msgEl){
+  if(msgEl){ msgEl.className='msg'; msgEl.textContent=' sending…'; }
+  try{
+    const r=await fetch('/api/invite',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({adminEmail, emails})});
+    const d=await r.json();
+    if(d.emailConfigured===false) throw new Error('Email not set up yet (add RESEND_API_KEY).');
+    const txt = ` sent ${d.sent}`+(d.failed&&d.failed.length?`, ${d.failed.length} failed`:'');
+    if(msgEl){ msgEl.className='msg '+(d.ok?'ok':'err'); msgEl.textContent=txt; }
+  }catch(e){ if(msgEl){ msgEl.className='msg err'; msgEl.textContent=' '+e.message; } }
 }
 
 async function addEntry(){

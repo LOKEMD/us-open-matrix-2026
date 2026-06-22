@@ -332,7 +332,7 @@ function done(p){
   document.getElementById('back2').onclick=renderTournaments;
 }
 
-renderLogin();
+renderLogin(new URLSearchParams(location.search).get('email') || '');
 </script>
 </body>
 </html>
